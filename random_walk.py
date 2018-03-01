@@ -54,6 +54,7 @@ def nCr(n, r):
     Compute n choose r
     https://stackoverflow.com/questions/4941753/is-there-a-math-ncr-function-in-python
     '''
+    print 'n choose r called, n =', n, 'r =', r
     r = min(r, n-r)
     if r == 0: return 1
     numer = reduce(op.mul, xrange(n, n-r, -1))
@@ -233,7 +234,7 @@ def get_Ax_zero_probs_incompleteCol(n, m, w, k, f, verbose=False):
                         print "cur_partition_count=", cur_partition_count
 
     # the total number of vectors should be n choose w, make sure this is correct
-    assert(np.abs(vector_count - nCr(n, w)) < .001), (vector_count, nCr(n, w)) 
+    assert(np.abs(vector_count - nCr(n, w)) < .001), (vector_count, nCr(n, w), vector_count-nCr(n, w)) 
     return (vector_count, Ax_zero_probs)
 
 
@@ -267,33 +268,152 @@ def plot_pr_Ax_zero(n, m, k, f, max_w):
 
     '''
 #    assert(n/k == m) #make more general later
+    
+    RUN_K_BLOCK_DIAG = False
+    if RUN_K_BLOCK_DIAG:
+        all_w = [1] #w for the current partitioning
+        all_pr_Ax_zero = [1] #pr_Ax_zero for the current partitioning
+        all_vector_count = [1] #vectors in the current partitioning
+        for w in range(1, max_w+1):
+            print 'w =', w
+            #(all_vc, Ax_zero_probs) = get_Ax_zero_probs(n, w, k, f, verbose=False)
+            (all_vc, Ax_zero_probs) = get_Ax_zero_probs_incompleteCol(n, m, w, k, f, verbose=True)
+            for prob, vector_count in Ax_zero_probs.iteritems():
+                all_w.append(w)
+                all_pr_Ax_zero.append(prob)
+                all_vector_count.append(vector_count)
+        ###sort lists in order of probability A(x1-x2)=0
+        all_pr_Ax_zero, all_vector_count, all_w = zip(*sorted(zip(all_pr_Ax_zero, all_vector_count, all_w)))
+        #reverse lists so they are in order of descending probability A(x1-x2)=0
+        all_pr_Ax_zero = list(reversed(all_pr_Ax_zero))
+        all_vector_count = list(reversed(all_vector_count))
+        all_w = list(reversed(all_w))
+        #calculate cumulative number of vectors with probability A(x1-x2)=0 greater than or equal to current value
+        cumulative_vector_count = 0
+        cumulative_vector_counts = []
+        for vc in all_vector_count:
+            cumulative_vector_count += vc
+            cumulative_vector_counts.append(cumulative_vector_count)
 
-    all_w = [] #w for the current partitioning
-    all_pr_Ax_zero = [] #pr_Ax_zero for the current partitioning
-    all_vector_count = [] #vectors in the current partitioning
+        #calculate our upper bound on the sum of probabilities over a given set size
+        probability_sum = 0
+        probability_sums = []
+        probability_averages = []
+        for idx, vc in enumerate(all_vector_count):
+            probability_sum += vc*all_pr_Ax_zero[idx]
+            probability_sums.append(probability_sum)
+            probability_averages.append(probability_sum/cumulative_vector_counts[idx])
+
+
+    RUN_BASELINE = False
+    if RUN_BASELINE:
+        #baseline where all elements of A are sampled with probability f + k/n
+        #as in http://cs.stanford.edu/~ermon/papers/SparseHashing-revised.pdf
+        f_prime = k/n + f
+    #    f_prime = f
+        baseline_w = []
+        baseline_pr_Ax_zero = [] 
+        baseline_vector_count = [] #vectors in the current partitioning
+    
+        assert(f_prime > f and f_prime <= .5), (f_prime, k, n, f)
+        for w in range(1, max_w+1):
+            baseline_w.append(w)
+            prob = (.5 + .5*(1-2*f_prime)**w)**m
+            baseline_pr_Ax_zero.append(prob)
+            vector_count = nCr(n, w)
+            baseline_vector_count.append(vector_count)
+
+    #calculate cumulative number of vectors with probability A(x1-x2)=0 greater than or equal to current value
+    #note baseline is already monotonically decreasing with w, no need to sort
+        cumulative_vector_count = 0
+        baseline_cumulative_vector_counts = []
+        for vc in baseline_vector_count:
+            cumulative_vector_count += vc
+            baseline_cumulative_vector_counts.append(cumulative_vector_count)
+
+        probability_sum = 0
+        baseline_probability_sums = []
+        baseline_probability_averages = []
+        for idx, vc in enumerate(baseline_vector_count):
+            probability_sum += vc*baseline_pr_Ax_zero[idx]
+            baseline_probability_sums.append(probability_sum)
+            baseline_probability_averages.append(probability_sum/baseline_cumulative_vector_counts[idx])
+
+
+    ####### 1. Begin with a block diagional with k = 1, so each row has one 1 and m columns have one 1
+    ####### 2. Then randomly permute columns so that each row still has one 1 and columns still have one 1,
+    ####### but the columns are random.
+    ####### 3. With probability f change 0's to 1's
+    permute_pr_Ax_zero = [] 
+    permute_vector_count = [] #vectors in the current partitioning
     for w in range(1, max_w+1):
-        print 'w =', w
-        #(all_vc, Ax_zero_probs) = get_Ax_zero_probs(n, w, k, f, verbose=False)
-        (all_vc, Ax_zero_probs) = get_Ax_zero_probs_incompleteCol(n, m, w, k, f, verbose=True)
-        for prob, vector_count in Ax_zero_probs.iteritems():
-            all_w.append(w)
-            all_pr_Ax_zero.append(prob)
-            all_vector_count.append(vector_count)
+        total_vec_count = nCr(n, w)
+        double_check_vec_count = 0
+        prob = 0
+        for i in range(min(w, m) + 1): # the number of elements in the vector (x1-x2) that hit a deterministic 1 in the matrix A
+            print "m=", m
+            print "i=", i
+            print "w=", w
+            print 'n=', n
+            print min(w, m, n-m) 
+            if w-i > n-m:
+                continue
+            cur_vec_count = nCr(m, i)*nCr(n-m, w-i)
+            double_check_vec_count += cur_vec_count
+            cur_prob = cur_vec_count/total_vec_count
+            prob += cur_prob * ((.5 + .5*(1-2*f)**w)**(m-i)) * ((.5 - .5*(1-2*f)**(w-1))**i)
+        assert(total_vec_count == double_check_vec_count)
+        permute_pr_Ax_zero.append(prob)
+        permute_vector_count.append(total_vec_count)
 
-    #baseline where all elements of A are sampled with probability f + k/n
+    #calculate cumulative number of vectors with probability A(x1-x2)=0 greater than or equal to current value
+    #note baseline is already monotonically decreasing with w, no need to sort
+    cumulative_vector_count = 0
+    permute_cumulative_vector_counts = []
+    for vc in permute_vector_count:
+        cumulative_vector_count += vc
+        permute_cumulative_vector_counts.append(cumulative_vector_count)
+
+    probability_sum = 0
+    permute_probability_sums = []
+    permute_probability_averages = []
+    for idx, vc in enumerate(permute_vector_count):
+        probability_sum += vc*permute_pr_Ax_zero[idx]
+        permute_probability_sums.append(probability_sum)
+        permute_probability_averages.append(probability_sum/permute_cumulative_vector_counts[idx])
+
+
+    #best possible bound, where f=.5
     #as in http://cs.stanford.edu/~ermon/papers/SparseHashing-revised.pdf
-    f_prime = k/n + f
-    baseline_w = []
-    baseline_pr_Ax_zero = [] 
-    baseline_vector_count = [] #vectors in the current partitioning
+    f_best = .5
+    best_w = []
+    best_pr_Ax_zero = [] 
+    best_vector_count = [] #vectors in the current partitioning
 
-    assert(f_prime > f and f_prime <= .5), (f_prime, k, n, f)
     for w in range(1, max_w+1):
-        baseline_w.append(w)
-        prob = (.5 + .5*(1-2*f_prime)**w)**m
-        baseline_pr_Ax_zero.append(prob)
+        best_w.append(w)
+        prob = (.5 + .5*(1-2*f_best)**w)**m
+        best_pr_Ax_zero.append(prob)
         vector_count = nCr(n, w)
-        baseline_vector_count.append(vector_count)
+        best_vector_count.append(vector_count)
+    #calculate cumulative number of vectors with probability A(x1-x2)=0 greater than or equal to current value
+    #note best is already monotonically decreasing with w, no need to sort
+    cumulative_vector_count = 0
+    best_cumulative_vector_counts = []
+    for vc in best_vector_count:
+        cumulative_vector_count += vc
+        best_cumulative_vector_counts.append(cumulative_vector_count)
+
+    probability_sum = 0
+    best_probability_sums = []
+    best_probability_averages = []
+    for idx, vc in enumerate(best_vector_count):
+        probability_sum += vc*best_pr_Ax_zero[idx]
+        best_probability_sums.append(probability_sum)
+        best_probability_averages.append(probability_sum/best_cumulative_vector_counts[idx])
+
+
+
 
 #    plt.scatter(all_w,all_pr_Ax_zero,c=all_vector_count)
 #    print len(all_w)
@@ -304,32 +424,15 @@ def plot_pr_Ax_zero(n, m, k, f, max_w):
 #
 #    plt.show()
 
-    ###sort lists in order of probability A(x1-x2)=0
-    all_pr_Ax_zero, all_vector_count, all_w = zip(*sorted(zip(all_pr_Ax_zero, all_vector_count, all_w)))
-    #reverse lists so they are in order of descending probability A(x1-x2)=0
-    all_pr_Ax_zero = list(reversed(all_pr_Ax_zero))
-    all_vector_count = list(reversed(all_vector_count))
-    all_w = list(reversed(all_w))
-    #calculate cumulative number of vectors with probability A(x1-x2)=0 greater than or equal to current value
-    cumulative_vector_count = 0
-    cumulative_vector_counts = []
-    for vc in all_vector_count:
-        cumulative_vector_count += vc
-        cumulative_vector_counts.append(cumulative_vector_count)
 
     #calculate cumulative number of vectors with probability A(x1-x2)=0 greater than or equal to current value
     #note baseline is already monotonically decreasing with w, no need to sort
-    cumulative_vector_count = 0
-    baseline_cumulative_vector_counts = []
-    for vc in baseline_vector_count:
-        cumulative_vector_count += vc
-        baseline_cumulative_vector_counts.append(cumulative_vector_count)
-
-    print "baseline total vector count =", baseline_cumulative_vector_counts[-1]
-    print "new total vector count =", cumulative_vector_counts[-1]
-    print "2^n =", 2**n
-    print "difference =", cumulative_vector_counts[-1] - baseline_cumulative_vector_counts[-1]
-    print "2^n - (new total vector count)=", 2**n - cumulative_vector_counts[-1]
+    if RUN_BASELINE and RUN_K_BLOCK_DIAG:  
+        print "baseline total vector count =", baseline_cumulative_vector_counts[-1]
+        print "new total vector count =", cumulative_vector_counts[-1]
+        print "2^n =", 2**n
+        print "difference =", cumulative_vector_counts[-1] - baseline_cumulative_vector_counts[-1]
+        print "2^n - (new total vector count)=", 2**n - cumulative_vector_counts[-1]
 #    plt.scatter(all_w,all_pr_Ax_zero,c=cumulative_vector_counts)
 #    print len(all_w)
 #    print len(baseline_pr_Ax_zero)
@@ -337,38 +440,44 @@ def plot_pr_Ax_zero(n, m, k, f, max_w):
 #    plt.scatter(baseline_w,baseline_pr_Ax_zero,c=baseline_cumulative_vector_counts,marker='x')
 #    plt.colorbar()
 #    plt.show()
-#
-    #calculate our upper bound on the sum of probabilities over a given set size
-    probability_sum = 0
-    probability_sums = []
-    probability_averages = []
-    for idx, vc in enumerate(all_vector_count):
-        probability_sum += vc*all_pr_Ax_zero[idx]
-        probability_sums.append(probability_sum)
-        probability_averages.append(probability_sum/cumulative_vector_counts[idx])
 
-    probability_sum = 0
-    baseline_probability_sums = []
-    baseline_probability_averages = []
-    for idx, vc in enumerate(baseline_vector_count):
-        probability_sum += vc*baseline_pr_Ax_zero[idx]
-        baseline_probability_sums.append(probability_sum)
-        baseline_probability_averages.append(probability_sum/baseline_cumulative_vector_counts[idx])
+        print 'debugging'
+        print len(permute_cumulative_vector_counts)
+        print len(baseline_cumulative_vector_counts)
+
+    for idx, permute_sum in enumerate(permute_probability_sums):
+        print permute_sum - best_probability_sums[idx]
+#        assert(permute_sum >= best_probability_sums[idx]), (idx, permute_sum, best_probability_sums[idx], (permute_sum - best_probability_sums[idx]))
+
 
 
 #    plt.scatter(cumulative_vector_counts, probability_sums, c = 'b', marker='+')
-#    plt.scatter(baseline_cumulative_vector_counts, baseline_probability_sums, c='r', marker='x')
-    plt.scatter(cumulative_vector_counts, probability_averages, c = 'b', marker='+')
-    plt.scatter(baseline_cumulative_vector_counts, baseline_probability_averages, c='r', marker='x')
+    if RUN_BASELINE:
+        print "len(baseline_cumulative_vector_counts):", len(baseline_cumulative_vector_counts)
+        plt.scatter(baseline_cumulative_vector_counts, baseline_probability_sums, c='r', marker='x')
+    plt.scatter(permute_cumulative_vector_counts, permute_probability_sums, c='g', marker='o')
+    plt.scatter(best_cumulative_vector_counts, best_probability_sums, c='b', marker='^')
+#####    plt.scatter(cumulative_vector_counts, probability_averages, c = 'b', marker='+')
+#####    plt.scatter(baseline_cumulative_vector_counts, baseline_probability_averages, c='r', marker='x')
+#####    plt.scatter(permute_cumulative_vector_counts, permute_probability_averages, c='g', marker='o')
     plt.show()
 
 def check_set_size_with_diag(n, m):
     print 
 
+def quick_check_counts(n, m, w):
+    sum1 = 0
+    for i in range(w+1):
+        sum1 += nCr(m, i)*nCr(n-m, w-i)
 
+    print 'sum1 =', sum1
+    print 'sum2 =', nCr(n, w)
 
-plot_pr_Ax_zero(n=40, m=4, k=1, f=.01, max_w=40)
-#plot_pr_Ax_zero(n=120, m=30, k=4, f=.05, max_w=40)
+#quick_check_counts(n=40, m=20, w=8)
+#sleep(1)
+
+#plot_pr_Ax_zero(n=2, m=2, k=1, f=.0, max_w=2)
+plot_pr_Ax_zero(n=120, m=30, k=4, f=.05, max_w=40)
 
 count_vectors(n=20, w=5, k=4, verbose=True)
 sleep(3)

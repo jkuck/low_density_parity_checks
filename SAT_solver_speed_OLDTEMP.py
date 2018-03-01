@@ -21,13 +21,7 @@ WBO_DIRECTORY = '/atlas/u/jkuck/software/open-wbo'
 #Download from http://www.maxhs.org/downloads.html
 MAX_HS_DIRECTORY = '/atlas/u/jkuck/software/MaxHS-3.0/build/release/bin'
 
-#Directory containing the cryptominisat5 executable
-#installation instructions: https://github.com/msoos/cryptominisat
-CRYPTOMINISAT5_DIRECTORY = '/Users/jkuck/software/cryptominisat-5.0.1/build'
-#CRYPTOMINISAT5_DIRECTORY = '/atlas/u/jkuck/software/cryptominisat-5.0.1/build'
-
-#SAT_SOLVER = "MAX_HS"
-SAT_SOLVER = "CRYPTOMINISAT5"
+SAT_SOLVER = "MAX_HS"
 #SAT_SOLVER = "WBO" #something strange seems to happen using WBO, also seems slower than MAX_HS
 
 
@@ -41,7 +35,6 @@ def nCr(n, r):
     numer = reduce(op.mul, xrange(n, n-r, -1))
     denom = reduce(op.mul, xrange(1, r+1))
     return numer//denom
-
 
 
 class SAT_problem:
@@ -61,33 +54,15 @@ class SAT_problem:
         self.nbclauses = nbclauses
         self.clauses = clauses
 
-
-    def convert_XOR_to_chunked_OR(XOR_constraint, max_clause_size):
-        '''
-    
-        Inputs:
-        - XOR_constraint: list of ints, representing an XOR constraint of variables specified by ints
-        - max_clause_size: int, maximum number of original variables allowed per OR clause
-    
-        Outputs:
-        - OR_clauses: list of list of ints, each list of ints represents an OR clause over the 
-            variables referenced by the ints it contains
-    
-        '''
-        return None
-
-        
-
-    def add_parity_constraints(self, m, f, use_XOR_clauses):
+    def hash_original(self, m, f):
         '''
         Add low density parity constraints to the SAT problem, randomly hashing satisfying 
         solutions into m dimensional bins (m<n) by setting every element in the matrix A to 1
         with probabiliy f as described here: https://cs.stanford.edu/~ermon/papers/SparseHashing-revised.pdf
-
         Inputs:
         - m: int, the dimension of the output hash space (rows in matrix A)
         - f: float, probability of setting every entry in A to 1
-        - use_XOR_clauses: bool, if True encode XOR clauses directl
+
         Outputs:
 
         '''
@@ -228,37 +203,25 @@ def solve_SAT(sat_problem):
     t0 = time.time()
     if SAT_SOLVER == "WBO":
         (status, output) = commands.getstatusoutput("%s/open-wbo_static ./temp_SAT_file.txt" % WBO_DIRECTORY)
-    elif SAT_SOLVER == "CRYPTOMINISAT5":
-        (status, output) = commands.getstatusoutput("%s/cryptominisat5 --verb 0 ./temp_SAT_file.txt" % CRYPTOMINISAT5_DIRECTORY)        
     else:
-        assert(SAT_SOLVER == "MAX_HS")
         print 'hi'
         print "%s/maxhs ./temp_SAT_file.txt" % MAX_HS_DIRECTORY
+        assert(SAT_SOLVER == "MAX_HS")
         (status, output) = commands.getstatusoutput("%s/maxhs ./temp_SAT_file.txt" % MAX_HS_DIRECTORY)
     t1 = time.time()
     solver_time = t1 - t0
-
     print output
 
-    zero_count = 0 #cryptominisat5 appends a 0 at the end of the solution, make sure we only get one
     for line in output.splitlines():
         if line[0] == 'v': #find the line in the output containing variable values in the solution
             params = line.split()
-#            assert(len(params) == sat_problem.nbvar + 1), (len(params), sat_problem.nbvar+1, params)
+            assert(len(params) == sat_problem.nbvar + 1), (len(params), sat_problem.nbvar+1)
             for i in range(1, len(params)):
                 if int(params[i]) > 0:
                     satisying_solution.append(1)
-                elif(int(params[i]) < 0):
-                    satisying_solution.append(-1)
                 else:
-                    assert(int(params[i]) == 0)
-                    zero_count+=1
-
-    assert(zero_count == 0 or zero_count == 1)
-    if SAT_SOLVER == "CRYPTOMINISAT5":
-        assert(len(satisying_solution) == sat_problem.nbvar), (len(satisying_solution), sat_problem.nbvar+1)
-    else:
-        assert(len(satisying_solution) == sat_problem.nbvar + 1), (len(satisying_solution), sat_problem.nbvar+1)
+                    assert(int(params[i]) < 0)
+                    satisying_solution.append(-1)
 
     return satisying_solution, solver_time
 
@@ -266,9 +229,9 @@ def solve_SAT(sat_problem):
 
 if __name__=="__main__":
     sat_problem = read_SAT_problem("SAT_problems_cnf/%s" % "c499.isc")
-    sat_problem.add_parity_constraints(m = 40, f=0.01, use_XOR_clauses=True)
+    sat_problem.hash_original(m = 40, f=0.0)
     solution, time = solve_SAT(sat_problem)
-    print 'time =', time
+    print time
     sleep(1)
 
 
