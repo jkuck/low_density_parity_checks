@@ -255,15 +255,46 @@ def get_row_prob(summand, w, f):
     #print "row_prob=", row_prob, "summand=", summand, "w=", w, "f=", f
     return row_prob
 
-#FIX CASE WHERE m != bin_count!!!
 
-def plot_pr_Ax_zero(n, m, k, f, max_w):
+def permutation_collision_prob(n, m, w_in, w_out, debug=False):
+    '''
+    Define the set of matrices A_set with dimensions (m x n) with m <= n, exactly one 1 in each row,
+    and zero or one 1's in each column.  Consider sampling a matrix A uniformly at random from A_set.
+
+    Inputs:
+    - n: int, columns in A
+    - m: int, rows in A
+    - w_in: int, hamming weight of a vector x which we will multiply with A
+    - w_out: int, we're interested in whether the vector Ax has hamming weight w_out
+
+    Outputs:
+    - prob: float, the probability that Ax has hamming weight w_out for any vector x with hamming weight w_in
+    '''
+    assert(m <= n)
+    assert(w_in <= n)
+    assert(w_out >= m-(n-w_in))
+    assert(w_out <= w_in and w_out <= m)
+    #the number of matrices in A_set such that Ax has hamming weight w_out for any x with hamming weight w_in
+    prob = nCr(w_in, w_out)*nCr(n-w_in, m-w_out) 
+    #divide by the number of matrices in A_set
+    prob /= nCr(n, m)
+    if debug:
+        A_set_size = nCr(n, m)
+        check_A_set_size = 0
+        for enum_w_out in range(max(0, m-(n-w_in)), min(w_in, m)+1):
+            check_A_set_size += nCr(w_in, enum_w_out)*nCr(n-w_in, m-enum_w_out)
+        assert(check_A_set_size == A_set_size)
+    return prob
+
+#FIX CASE WHERE m != bin_count!!!
+def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, RUN_BASELINE=False):
     '''
     Inputs:
     - n: int, columns in the matrix A
     - m: int, rows in the matrix A
     - k: int, block size of 1's on the diagonal of A
-    - f: float, probability with which remaining 0's are set to 1
+    - f_baseline: float, probability with which 0's are set to 1 when running baseline with iid entries
+    - f_k1: float, probability with which remaining 0's are set to 1 when k=1
     - w_max: int, plot Pr[A(x1-x2) = 0] up to (x1-x2) with hamming weight w_max
 
     '''
@@ -276,8 +307,8 @@ def plot_pr_Ax_zero(n, m, k, f, max_w):
         all_vector_count = [1] #vectors in the current partitioning
         for w in range(1, max_w+1):
             print 'w =', w
-            #(all_vc, Ax_zero_probs) = get_Ax_zero_probs(n, w, k, f, verbose=False)
-            (all_vc, Ax_zero_probs) = get_Ax_zero_probs_incompleteCol(n, m, w, k, f, verbose=True)
+            #(all_vc, Ax_zero_probs) = get_Ax_zero_probs(n, w, k, f_baseline, verbose=False)
+            (all_vc, Ax_zero_probs) = get_Ax_zero_probs_incompleteCol(n, m, w, k, f_baseline, verbose=True)
             for prob, vector_count in Ax_zero_probs.iteritems():
                 all_w.append(w)
                 all_pr_Ax_zero.append(prob)
@@ -305,17 +336,16 @@ def plot_pr_Ax_zero(n, m, k, f, max_w):
             probability_averages.append(probability_sum/cumulative_vector_counts[idx])
 
 
-    RUN_BASELINE = False
     if RUN_BASELINE:
-        #baseline where all elements of A are sampled with probability f + k/n
+        #baseline where all elements of A are sampled with probability f_baseline + k/n
         #as in http://cs.stanford.edu/~ermon/papers/SparseHashing-revised.pdf
-        f_prime = k/n + f
-    #    f_prime = f
+        f_prime = k/n + f_baseline
+    #    f_prime = f_baseline
         baseline_w = []
         baseline_pr_Ax_zero = [] 
         baseline_vector_count = [] #vectors in the current partitioning
     
-        assert(f_prime > f and f_prime <= .5), (f_prime, k, n, f)
+        assert(f_prime > f_baseline and f_prime <= .5), (f_prime, k, n, f_baseline)
         for w in range(1, max_w+1):
             baseline_w.append(w)
             prob = (.5 + .5*(1-2*f_prime)**w)**m
@@ -348,22 +378,34 @@ def plot_pr_Ax_zero(n, m, k, f, max_w):
     permute_vector_count = [] #vectors in the current partitioning
     for w in range(1, max_w+1):
         total_vec_count = nCr(n, w)
-        double_check_vec_count = 0
-        prob = 0
-        for i in range(min(w, m) + 1): # the number of elements in the vector (x1-x2) that hit a deterministic 1 in the matrix A
-            print "m=", m
-            print "i=", i
-            print "w=", w
-            print 'n=', n
-            print min(w, m, n-m) 
-            if w-i > n-m:
-                continue
-            cur_vec_count = nCr(m, i)*nCr(n-m, w-i)
-            double_check_vec_count += cur_vec_count
-            cur_prob = cur_vec_count/total_vec_count
-            prob += cur_prob * ((.5 + .5*(1-2*f)**w)**(m-i)) * ((.5 - .5*(1-2*f)**(w-1))**i)
-        assert(total_vec_count == double_check_vec_count)
-        permute_pr_Ax_zero.append(prob)
+
+        USE_CORRECTED = True
+        if USE_CORRECTED:
+            calc_one = 0.0
+            cur_prob_Ax_zero = 0
+            for collision_count in range(max(0, m-(n-w)), min(w, m)+1):
+                collision_prob = permutation_collision_prob(n=n, m=m, w_in=w, w_out=collision_count, debug=True)
+                calc_one += collision_prob
+                cur_prob_Ax_zero += collision_prob * ((.5 + .5*(1-2*f_k1)**w)**(m-collision_count)) * ((.5 - .5*(1-2*f_k1)**(w-1))**collision_count)
+            assert(np.abs(calc_one -  1.0) < .0001), calc_one
+            permute_pr_Ax_zero.append(cur_prob_Ax_zero)
+        else: #incorrect, was previously using
+            double_check_vec_count = 0
+            prob = 0
+            for i in range(min(w, m) + 1): # the number of elements in the vector (x1-x2) that hit a deterministic 1 in the matrix A
+                print "m=", m
+                print "i=", i
+                print "w=", w
+                print 'n=', n
+                print min(w, m, n-m) 
+                if w-i > n-m:
+                    continue
+                cur_vec_count = nCr(m, i)*nCr(n-m, w-i)
+                double_check_vec_count += cur_vec_count
+                cur_prob = cur_vec_count/total_vec_count
+                prob += cur_prob * ((.5 + .5*(1-2*f_k1)**w)**(m-i)) * ((.5 - .5*(1-2*f_k1)**(w-1))**i)
+            assert(total_vec_count == double_check_vec_count)
+            permute_pr_Ax_zero.append(prob)
         permute_vector_count.append(total_vec_count)
 
     #calculate cumulative number of vectors with probability A(x1-x2)=0 greater than or equal to current value
@@ -454,12 +496,23 @@ def plot_pr_Ax_zero(n, m, k, f, max_w):
 #    plt.scatter(cumulative_vector_counts, probability_sums, c = 'b', marker='+')
     if RUN_BASELINE:
         print "len(baseline_cumulative_vector_counts):", len(baseline_cumulative_vector_counts)
-        plt.scatter(baseline_cumulative_vector_counts, baseline_probability_sums, c='r', marker='x')
-    plt.scatter(permute_cumulative_vector_counts, permute_probability_sums, c='g', marker='o')
-    plt.scatter(best_cumulative_vector_counts, best_probability_sums, c='b', marker='^')
+        plt.scatter(baseline_cumulative_vector_counts, baseline_probability_sums, c='r', marker='x', label='baseline, iid f')
+    plt.scatter(permute_cumulative_vector_counts, permute_probability_sums, c='g', marker='o', label='permuted k=1')
+    plt.scatter(best_cumulative_vector_counts, best_probability_sums, c='b', marker='^', label='best, f=.5')
+    plt.legend()
+    plt.show()
+
+    if RUN_BASELINE:
+        print "len(baseline_cumulative_vector_counts):", len(baseline_cumulative_vector_counts)
+        plt.scatter(baseline_cumulative_vector_counts, [baseline - best_probability_sums[idx] for idx, baseline in enumerate(baseline_probability_sums)], c='r', marker='x', label='baseline-best, iid f')
+    plt.scatter(permute_cumulative_vector_counts, [permute - best_probability_sums[idx] for idx, permute in enumerate(permute_probability_sums)], c='g', marker='o', label='permuted-best k=1')
+    #plt.scatter(best_cumulative_vector_counts, best_probability_sums, c='b', marker='^', label='best, f=.5')
+
 #####    plt.scatter(cumulative_vector_counts, probability_averages, c = 'b', marker='+')
 #####    plt.scatter(baseline_cumulative_vector_counts, baseline_probability_averages, c='r', marker='x')
 #####    plt.scatter(permute_cumulative_vector_counts, permute_probability_averages, c='g', marker='o')
+    
+    plt.legend()
     plt.show()
 
 def check_set_size_with_diag(n, m):
@@ -477,17 +530,24 @@ def quick_check_counts(n, m, w):
 #sleep(1)
 
 #plot_pr_Ax_zero(n=2, m=2, k=1, f=.0, max_w=2)
-plot_pr_Ax_zero(n=120, m=30, k=4, f=.05, max_w=40)
+if __name__=="__main__":
 
-count_vectors(n=20, w=5, k=4, verbose=True)
-sleep(3)
+    #plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.2, f_k1=.2, max_w=576, RUN_BASELINE=True)
+    plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.05, f_k1=.05, max_w=576, RUN_BASELINE=True)
 
-partitions = integer_partitions(10)
-
-print partitions
-print type(partitions)
-number_of_partitions = 0
-for p in partitions:
-    print p
-    number_of_partitions += 1
-print number_of_partitions
+    #why does this look messed up, can we do better than f=.5??
+    plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.1, f_k1=.1, max_w=576, RUN_BASELINE=True)
+    
+    ##count_vectors(n=20, w=5, k=4, verbose=True)
+    ##sleep(3)
+    ##
+    ##partitions = integer_partitions(10)
+    ##
+    ##print partitions
+    ##print type(partitions)
+    ##number_of_partitions = 0
+    ##for p in partitions:
+    ##    print p
+    ##    number_of_partitions += 1
+    ##print number_of_partitions
+    ##
