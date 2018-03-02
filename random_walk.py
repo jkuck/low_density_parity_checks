@@ -604,6 +604,8 @@ def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, BF_PRECISION=400, RUN_BASE
         plt.scatter(baseline_cumulative_vector_counts, baseline_probability_sums, c='r', marker='x', label='baseline, iid f')
     plt.scatter(permute_cumulative_vector_counts, permute_probability_sums, c='g', marker='o', label='permuted k=1')
     plt.scatter(best_cumulative_vector_counts, best_probability_sums, c='b', marker='^', label='best, f=.5')
+    plt.xlabel('set size')
+    plt.ylabel('sum of p[Ax=0] for worst case set')
     plt.legend()
     plt.show()
 
@@ -616,6 +618,8 @@ def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, BF_PRECISION=400, RUN_BASE
 #####    plt.scatter(cumulative_vector_counts, probability_averages, c = 'b', marker='+')
 #####    plt.scatter(baseline_cumulative_vector_counts, baseline_probability_averages, c='r', marker='x')
 #####    plt.scatter(permute_cumulative_vector_counts, permute_probability_averages, c='g', marker='o')
+    plt.xlabel('set size')
+    plt.ylabel('difference between methods of (sum of p[Ax=0] for worst case set)')
     
     plt.legend()
     plt.show()
