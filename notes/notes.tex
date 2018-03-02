@@ -1,0 +1,304 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath, amssymb, amsfonts, amsthm}
+\usepackage[top=1in, bottom=1in, left=1in, right=1in]{geometry}
+\usepackage{enumerate}
+\usepackage{enumitem}
+\usepackage{mathtools}
+\usepackage{todonotes}
+
+\allowdisplaybreaks[2]
+
+\input{defs.tex}
+
+\bibliographystyle{unsrt}
+
+\title{SAT model counting with LDPC codes - Research notes}
+\author{Tri Dao -- \texttt{trid@stanford.edu}}
+\date{\today}
+\begin{document}
+
+\maketitle
+
+\section{Parity constraints with LDPC codes}
+\label{sec:parity_constraints}
+
+\subsection{First and second moments of projected partition function with
+  low-density parity constraints}
+\label{subsec:first_second_moments}
+
+We re-derive the mean and variance of the estimators in the original WISH papers
+\cite{wishicml13,ermon2014low} for general weights.
+
+Suppose we have a graphical model with variable $X \in \mathcal{X} = \{
+0, 1 \}^n$:
+\begin{equation*}
+  p(x) = \frac{1}{Z} \phi(x), \qquad
+  Z = \sum_{x \in \mathcal{X}} \phi(x),
+\end{equation*}
+where $\phi(x) \geq 0$ is the factor/potential at each configuration $x$.
+We are interested in approximating $Z$.
+
+We introduce $m$ parity constraints by generating a random matrix $A \in \{ 0, 1
+\}^{m \times n}$ and a random vector $b \in \{ 0, 1 \}^m$ where $A_{ij}
+\overset{\text{iid}}{\sim} \mathrm{Ber}(f)$ and independently $b_i
+\overset{\text{iid}}{\sim} \mathrm{Ber}(1/2)$.
+Suppose that $0 < f \leq 1/2$.
+Let
+\begin{equation*}
+  Z(A, b) = \sum_{x \colon Ax = b \bmod 2} \phi(x).
+\end{equation*}
+
+We first compute the first moment:
+\begin{align*}
+  \E[Z(A, b)]
+  &= \E\left[\sum_{x} \phi(x) I \{ Ax = b \}\right] = \sum_{x} \phi(x) \Pr[Ax =
+    b] \\
+  &= \sum_{A} \Pr(A) \sum_{x} \phi(x) \Pr[b = Ax \mid A] = \sum_{A} \Pr(A)
+    \sum_{x} \phi(x) 2^{-m} \\
+  &= 2^{-m} \sum_{x} \phi(x) = 2^{-m} Z.
+\end{align*}
+Hence $2^m Z(A, b)$ is an unbiased estimator of $Z$.
+Note that this holds for any distribution of $A$, as long as $b_i
+\overset{\text{iid}}{\sim} \mathrm{Ber}(1/2)$.
+
+Now we compute the second moment:
+\begin{align*}
+  \E[Z(A, b)^2]
+  &= \sum_{x, x'} \phi(x) \phi(x') \E \left[ I \{ Ax = b \} I \{ Ax' = b \}
+    \right] \\
+  &= \sum_{x} \phi(x)^2 \Pr[Ax = b] + \sum_{x \neq x'} \phi(x) \phi(x') \Pr[Ax =
+    Ax' = b] \\
+  &= 2^{-m} \left[ \sum_{x} \phi(x)^2 + \sum_{x \neq x'} \phi(x) \phi(x')
+    \Pr[A(x - x') = 0] \right].
+    \numberthis \label{eq:second_moment}
+\end{align*}
+Let $H(x, x')$ be the Hamming distance between $x$ and $x'$.
+If $H(x, x') = h > 0$ then $A(x - x') = 0$ if and only if the sum of $h$ columns
+of $A$ yields $0 \pmod 2$ (it does not matter which columns).
+Since all the rows of $A$ are independent, we compute the probability of the sum
+of $h$ entries from one row being 0.
+This is equivalent starting at 0, taking $h$ steps of a random walk with
+probability $f$ of switching from 0 to 1 and vice versa, and probability $1 - f$
+of staying in place, and ending up at state 0.
+If we start at state 0 at time 0, after $h$ time steps, the probability of being
+in state 0 is $\frac{1 + (1 - 2f)^h}{2}$.
+Hence $\Pr[A(x - x') = 0] = \frac{\left(1 + (1 - 2f)^{H(x, x')}\right)^{m}}{2^m}$.
+Substituting this in equation~\eqref{eq:second_moment} gives
+\begin{equation*}
+  \E[Z(A, b)^2]
+  = 2^{-m} \left[ \sum_x \phi(x)^2 + 2^{-m} \sum_{x \neq x'} \phi(x) \phi(x')
+    \left( 1 + (1 - 2f)^{H(x, x')} \right)^m \right].
+\end{equation*}
+
+\paragraph{Model counting.}
+Suppose that $\phi(x) = I \{ x \in S \}$ for some set $S$.
+Then $\phi(x) \in \{ 0, 1 \}$ for all $x$, so $\phi(x)^2 = \phi(x)$.
+Since $Z = \abs{S}$,  so $\E[Z(A, b)] = 2^{-m} \abs{S}$.
+We can also simplify the second moment in equation~\ref{eq:second_moment}:
+\begin{align*}
+  \var[Z(A, b)] = 2^{-m} \left[ \abs{S} + 2^{-m} \sum_{\substack{x, x' \in S \\ x \neq x'}} \left( 1 + (1 - 2f)^{H(x, x')} \right)^m \right].
+\end{align*}
+After a few more steps of simplification (which we will not repeat here), we
+obtain the bound in \cite{ermon2014low}.
+
+\subsection{Hashing with LDPC matrices - Loose bounds}
+
+Now we will change the distribution of matrix $A$ to be closer to LDPC matrices.
+This section serves as a warm-up as we will only prove a loose bound that the
+variance is no worse than the previous i.i.d.\ case.
+
+As an example, for the $2 \times 3$ case, we may want $A_{ij} \sim \mathrm{Ber}(F_{ij})$
+where
+\begin{equation*}
+  F = \begin{bmatrix} 1 & f & f \\ f & 1 & f \end{bmatrix}.
+\end{equation*}
+That is, we may want to have a diagonal of 1's.
+Moreover, we may even randomly permute the columns of $A$.
+Note that this makes the rows of $A$ no longer independent: knowing that $A_{12}
+= 1$ means that $A_{12}$ was probably sampled from $\mathrm{Ber}(1)$, so
+$A_{22}$ is probably sampled from $\mathrm{Ber}(f)$, which means it is less
+likely than usual to be 1.
+
+To ensure the analysis still go through (easily), we will make some compromises:
+\begin{itemize}
+  \item We will not sample from $\mathrm{Ber}(1)$ (surely 1) but from
+  $\mathrm{Ber}(1 - f)$ (1 with high probability) instead.
+  \item We assume that the indices having $\mathrm{Ber}(1-f)$ distribution are
+  chosen without ``peeking'' at the values of the other entries.
+  We will make this precise soon.
+\end{itemize}
+
+From the first assumption, we have $A_{ij} \sim \mathrm{Ber}(F_{ij})$ with $F_{ij}
+\in \{ f, 1 - f \}$.
+Since $\mathrm{Ber}(1 - f) = \mathrm{Ber}(1) + \mathrm{Ber}(f)$ (addition is
+done modulo 2),
+We can write this as $A = A' + A''$, where $A'_{ij} \sim \mathrm{Ber}(f)$ and
+$A''_{ij}$ is either 0 (where $A_{ij}$ is supposed to be $\mathrm{Ber}(f)$) or 1
+(where $A_{ij}$ is supposed to be $\mathrm{Ber}(1 - f)$).
+Note that $A''$ is also random, and the second assumption above corresponds to
+assuming that $A'$ and $A''$ are independent.
+
+This decomposition $A = A' + A''$ corresponds to the following sampling
+procedure: we sample $A''$ to determine which $A_{ij}$ will start with 1 while
+the rest start with 0, then we sample the coin flips $A'$ to decide which
+$A_{ij}$ will get flipped from 1 to 0 or 0 to 1.
+Note that $A''$ can model the random permutations of columns of $A$, as long as
+the permutation doesn't depend on the coin flips in $A'$.
+
+Surprisingly, this decomposition allows the analysis to go through almost
+verbatim, even if the rows of $A$ are no longer independent.
+The crucial quantity is $\Pr[A(x - x') = 0]$:
+\begin{align*}
+  \Pr[A(x - x') = 0]
+  &= \Pr[(A' + A'')(x - x') = 0] \\
+  &= \Pr[A'(x - x') = A''(x - x')] \\
+  &= \sum_{\delta} \Pr[A''(x - x') = \delta] \Pr[A'(x - x') = \delta],
+\end{align*}
+where we get the last equality from the independence of $A'$ and $A''$.
+Recall from Section~\ref{subsec:first_second_moments} that $\Pr[(A'(x - x'))_i =
+0]$ is the probability of a random walk of length $H(x, x')$ starting at 0 and
+ending at 0.
+Now $\Pr[(A'(x - x'))_i = \delta_i]$ is the probability of a random walk of length
+$H(x, x')$ starting at 0 and ending at $\delta_i$ (could be 0 or 1).
+Since $f \leq 1/2$, this probability is less than that of ending at 0, so $\Pr[A'(x -
+x') = \delta] \leq \Pr[A'(x - x') = 0]$.
+Therefore
+\begin{equation*}
+  \Pr[A(x - x') = 0] \leq \sum_{\delta} \Pr[A''(x - x') = \delta] \Pr[A'(x - x') = 0] = \Pr[A'(x
+  - x') = 0].
+\end{equation*}
+We have thus reduced to the i.i.d.\ situation in Section~\ref{subsec:first_second_moments}.
+Thus the same variance bound still holds.
+
+\subsection{Tighter bound for block size 1}
+\label{subsec:block_size_1}
+
+Now we prove a tighter bound for a special case with block size $k = 1$ and some
+entries are fixed to be 1 deterministically (not sampled from $\mathrm{Ber}(1 -
+f)$).
+The sampling procedure for $A$ is as follows.
+First set matrix $A''$ of size $m \times n$ to have all 1 on its diagonal:
+\begin{equation*}
+  A'' = 
+  \begin{bmatrix} 
+    1 & 0 & \hdots & 0 & 0 & \hdots & 0 \\ 
+    0 & 1 & \hdots & 0 & 0 & \hdots & 0 \\
+    \vdots & \vdots & \ddots & \vdots & & \hdots & \\
+    0 & 0 & \hdots & 1 & 0 & \hdots & 0
+  \end{bmatrix}
+\end{equation*}
+Then we flip each zero entry of $A''$ to one independently with probability $f$
+to obtain $A$.
+
+Fix some $x \in S$.
+The probability we care about is $\sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0]$.
+Let $w = H(x, x')$ be the Hamming distance and let $w^*$ be the largest possible
+distance.
+For each row of $A''$, either the 1 entry will coincide with the 1 entries in $x
+- x'$ or not.
+If it coincides, the random walk starts with 1 instead of 0 and the length is
+$w-1$, so its probability is $r^{w-1, f}(1, 0)$, which we can show to be less
+than $r^{w, f}(0, 0)$. 
+\todo{Prove this.}
+If it doesn't coincide, then the random walk still starts with 0 and take $w$
+steps, so the probability is $r^{w, f}(0, 1)$.
+Note that the rows of $A$ are still independent so $\Pr[A(x - x') = 0]$ is still
+a product of such random walk probabilities.
+For $1 \leq w \leq n - m$, it is possible in the worst case for the random walk to
+always start from 0 (i.e., $x - x'$ is 1 only on the last $n - m$ coordinates).
+Another way to phrase this is that the worst case is when there are $2^{n-m}-1$
+points that packed in a hypercube around $x$.
+But for $w \geq n - m + 1$, $x - x'$ must have $w - (n - m)$ entries that are one
+in the first $m$ coordinates, and so $w - (n - m)$ random walks starts from 1
+instead of 0.
+Thus we can bound
+\begin{equation*}
+  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{n - m} \binom{n}{w} [r^{(w,
+    f)}(0, 0)]^m + \sum_{w=n-m+1}^{w^*} \binom{n}{w} [r^{(w-1, f)}(1, 0)]^{w-(n-m)} [r^{(w, f)}(0, 0)]^{n-m}.
+\end{equation*}
+
+\subsection{Tighter bound for block size 1 with permutation}
+\label{subsec:block_size_1_perm}
+
+Now we analyze a variant of the previous sampling procedure, where we randomly
+``permute'' the columns of $A''$.
+
+\paragraph{Sampling with replacement.}
+We first analyze the case where each rows of $A''$ are formed independently:
+uniformly choose an index from 1 to $n$ and set to 1.
+That is, for each row, choose the index to set to 1 by sampling from $\{ 1,
+\dots, n \}$ \emph{with} replacement.
+
+The rows of $A$ are still independent.
+How does this change the random walk?
+Since $x - x'$ has weight $w$, there's a $w/n$ chance that the index picked in
+$A''$ will hit $x - x'$, and there's a $1 - w/n$ chance that it will not.
+Then the random walk starts with 1 with probability $w/n$, and starts with 0
+with probability $1-w/n$.
+This is the same for all rows.
+Therefore
+\begin{equation*}
+  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \left(
+    \frac{w}{n} r^{(w-1, f)}(1, 0) + \frac{n-w}{n} r^{(w, f)}(0, 0)\right)^m. 
+\end{equation*}
+This looks simpler already.
+However, because of AM-GM inequality, I suspect this is slightly worse than the
+bound with true permutation: we always multiply a bunch of random walk
+probabilities together, so if these probabilities are the same then the product
+will be large.
+
+\paragraph{Sampling without replacement.}
+The rows of $A''$ are no longer independent: uniformly choose an index from 1 to
+$n$ that has not been chosen by earlier rows and set it to 1.
+That is, for each row, choose the index to set to 1 by sampling from $\{ 1,
+\dots, n \}$ \emph{without} replacement.
+Let $C = \{ j \colon \exists i \text{ such that } A''_{i, j} = 1 \}$ be the set of
+column indices chosen.
+
+Note that after conditioning on the permutation (i.e., conditioning on matrix
+$A''$), the rows of $A$ are independent.
+For a fixed $x, x'$, let $I = \{ i \colon (x - x')_i = 1 \}$ be the set of
+indices where $x - x'$ is 1.
+The random walk probability depends on how many of the column indices chosen
+fall into $I$.
+If $w' = \abs{C \cap I}$ then $0 \leq w' \leq \min(m, w)$ and out of the $m$ random walks
+corresponding to $m$ rows, $w'$ of them start with 1 and take $w - 1$ steps,
+while the rest start with 0 and take $w$ steps.
+
+Since the probability doesn't depend on the order of column indices selected in
+the sampling procedure of $A''$, we can ignore the order in subsequent
+calculation.
+The problem boils down to computing the number of permutations that hit $I$ in
+$w'$ places.
+The sampling procedure can be rephrased as follows. 
+First choose $w'$ out of $w$ indices in $I$ to be hit ($\binom{w}{w'}$ choices).
+Then we need to place the remaining $m - w'$ rows into $n - w$ indices (that are
+not in $I$), so there are $\binom{n - w}{m - w'}$ choices.
+Thus then number of choices is $\binom{w}{w'} \binom{n - w}{m - w'}$.
+Since there are $\binom{n}{m}$ permutations in total, we obtain the bound
+\begin{equation*}
+  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w}
+  \sum_{w'=0}^{\min(m, w)}\frac{\binom{w}{w'} \binom{n - w}{m - w'}}{\binom{n}{m}}
+  [r^{(w-1, f)}(1, 0)]^{w'} [r^{(w, f)}(0, 0)]^{m-w'}.  
+\end{equation*}
+
+\subsection{The case of larger block size}
+\label{subsec:block_size_larger}
+
+What if in each row of $A''$ we have more than one 1 entries (i.e., block size
+larger than 1)?
+When will that improve the bound?
+It's not intuitively clear to me that there's a benefit to having larger block
+size.
+
+Nevertheless, it's not that bad to write down the bound.
+Again, we first consider the simple case where each rows of $A''$ are sampled
+independently: $k$ indices are picked at random (with replacement) to be set to
+1.
+Since $x - x'$ has weight $w$, there's a $\frac{(n - w)^k}{n^k}$ chance that all
+$k$ indices picked will miss $x - x'$.
+What's the chance that all $k$ indices 
+
+\bibliography{notes}
+
+\end{document}
