@@ -16,6 +16,8 @@ import operator as op
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+from bigfloat import BigFloat
+import bigfloat as bf
 
 def integer_partitions(n):
     '''
@@ -54,7 +56,6 @@ def nCr(n, r):
     Compute n choose r
     https://stackoverflow.com/questions/4941753/is-there-a-math-ncr-function-in-python
     '''
-    print 'n choose r called, n =', n, 'r =', r
     r = min(r, n-r)
     if r == 0: return 1
     numer = reduce(op.mul, xrange(n, n-r, -1))
@@ -256,7 +257,15 @@ def get_row_prob(summand, w, f):
     return row_prob
 
 
-def permutation_collision_prob(n, m, w_in, w_out, debug=False):
+def bigFloat_nCr(n, r):
+    '''
+    Outputs:
+    - ret_val: bigFloat, n choose r
+    '''
+    ret_val = bf.factorial(n)/(bf.factorial(r)*bf.factorial(n-r))
+    return ret_val
+
+def permutation_collision_prob_bigfloat(n, m, w_in, w_out, precision=100, debug=False):
     '''
     Define the set of matrices A_set with dimensions (m x n) with m <= n, exactly one 1 in each row,
     and zero or one 1's in each column.  Consider sampling a matrix A uniformly at random from A_set.
@@ -268,26 +277,67 @@ def permutation_collision_prob(n, m, w_in, w_out, debug=False):
     - w_out: int, we're interested in whether the vector Ax has hamming weight w_out
 
     Outputs:
-    - prob: float, the probability that Ax has hamming weight w_out for any vector x with hamming weight w_in
+    - prob: BigFloat, the probability that Ax has hamming weight w_out for any vector x with hamming weight w_in
     '''
     assert(m <= n)
     assert(w_in <= n)
     assert(w_out >= m-(n-w_in))
     assert(w_out <= w_in and w_out <= m)
-    #the number of matrices in A_set such that Ax has hamming weight w_out for any x with hamming weight w_in
-    prob = nCr(w_in, w_out)*nCr(n-w_in, m-w_out) 
-    #divide by the number of matrices in A_set
-    prob /= nCr(n, m)
+    with bf.precision(precision):
+        #the number of matrices in A_set such that Ax has hamming weight w_out for any x with hamming weight w_in
+        prob = bigFloat_nCr(w_in, w_out)*bigFloat_nCr(n-w_in, m-w_out) 
+        #divide by the number of matrices in A_set
+        prob /= bigFloat_nCr(n, m)
+        if debug:
+            A_set_size = bigFloat_nCr(n, m)
+            check_A_set_size = 0
+            for enum_w_out in range(max(0, m-(n-w_in)), min(w_in, m)+1):
+                check_A_set_size += bigFloat_nCr(w_in, enum_w_out)*bigFloat_nCr(n-w_in, m-enum_w_out)
+#            assert(np.abs(check_A_set_size - A_set_size) < .00001), (check_A_set_size, A_set_size)
+        return prob
+
+def permutation_collision_prob(n, m, w_in, w_out, return_ln=False, debug=False):
+    '''
+    Define the set of matrices A_set with dimensions (m x n) with m <= n, exactly one 1 in each row,
+    and zero or one 1's in each column.  Consider sampling a matrix A uniformly at random from A_set.
+
+    Inputs:
+    - n: int, columns in A
+    - m: int, rows in A
+    - w_in: int, hamming weight of a vector x which we will multiply with A
+    - w_out: int, we're interested in whether the vector Ax has hamming weight w_out
+    - return_log: bool, if true return ln(prob) instead of prob
+
+    Outputs:
+    - prob: BigFloat, the probability that Ax has hamming weight w_out for any vector x with hamming weight w_in
+    '''
+    assert(m <= n)
+    assert(w_in <= n)
+    assert(w_out >= m-(n-w_in))
+    assert(w_out <= w_in and w_out <= m)
     if debug:
         A_set_size = nCr(n, m)
         check_A_set_size = 0
         for enum_w_out in range(max(0, m-(n-w_in)), min(w_in, m)+1):
             check_A_set_size += nCr(w_in, enum_w_out)*nCr(n-w_in, m-enum_w_out)
         assert(check_A_set_size == A_set_size)
-    return prob
+    if return_ln:
+        ln = math.log
+        #the number of matrices in A_set such that Ax has hamming weight w_out for any x with hamming weight w_in
+        ln_prob = ln(nCr(w_in, w_out)) + ln(nCr(n-w_in, m-w_out))
+        #divide by the number of matrices in A_set
+        ln_prob -= ln(nCr(n, m))
+        return ln_prob
+
+    else:    
+        #the number of matrices in A_set such that Ax has hamming weight w_out for any x with hamming weight w_in
+        prob = nCr(w_in, w_out)*nCr(n-w_in, m-w_out) 
+        #divide by the number of matrices in A_set
+        prob /= nCr(n, m)
+        return prob
 
 #FIX CASE WHERE m != bin_count!!!
-def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, RUN_BASELINE=False):
+def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, BF_PRECISION=400, RUN_BASELINE=False):
     '''
     Inputs:
     - n: int, columns in the matrix A
@@ -308,7 +358,7 @@ def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, RUN_BASELINE=False):
         for w in range(1, max_w+1):
             print 'w =', w
             #(all_vc, Ax_zero_probs) = get_Ax_zero_probs(n, w, k, f_baseline, verbose=False)
-            (all_vc, Ax_zero_probs) = get_Ax_zero_probs_incompleteCol(n, m, w, k, f_baseline, verbose=True)
+            (all_vc, Ax_zero_probs) = get_Ax_zero_probs_incompleteCol(n, m, w, k, f_baseline, verbose=False)
             for prob, vector_count in Ax_zero_probs.iteritems():
                 all_w.append(w)
                 all_pr_Ax_zero.append(prob)
@@ -376,37 +426,89 @@ def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, RUN_BASELINE=False):
     ####### 3. With probability f change 0's to 1's
     permute_pr_Ax_zero = [] 
     permute_vector_count = [] #vectors in the current partitioning
-    for w in range(1, max_w+1):
-        total_vec_count = nCr(n, w)
 
-        USE_CORRECTED = True
-        if USE_CORRECTED:
+    #NUMERICAL_METHOD = 'BigFloat'
+    #NUMERICAL_METHOD = 'Logs'
+    NUMERICAL_METHOD = 'Original'
+    MULT_VECTOR_COUNT_IMPLICT = False
+    if NUMERICAL_METHOD == 'BigFloat':
+        for w in range(1, max_w+1):
+            print 'w=', w
+            total_vec_count = nCr(n, w)
+            permute_vector_count.append(total_vec_count)
+            with bf.precision(BF_PRECISION):
+                calc_one = 0.0
+                cur_prob_Ax_zero = 0
+                for collision_count in range(max(0, m-(n-w)), min(w, m)+1):
+                    if MULT_VECTOR_COUNT_IMPLICT:
+                        calc_one = 1.0
+                        cur_prob_Ax_zero += bigFloat_nCr(m, collision_count) * bigFloat_nCr(n - m, w - collision_count)\
+                                            * ((.5 + .5*(1-2*f_k1)**w)**(m-collision_count)) * ((.5 - .5*(1-2*f_k1)**(w-1))**collision_count)
+
+                    else:                    
+                        collision_prob = permutation_collision_prob_bigfloat(n=n, m=m, w_in=w, w_out=collision_count, precision=BF_PRECISION, debug=True)
+                        assert(collision_prob > 0), collision_prob
+                        calc_one += collision_prob
+                        cur_prob_Ax_zero += collision_prob * ((.5 + .5*(1-2*f_k1)**w)**(m-collision_count)) * ((.5 - .5*(1-2*f_k1)**(w-1))**collision_count)
+                assert(np.abs(calc_one - 1.0) < .0001)            
+                #assert(np.abs(cur_prob_Ax_zero - .5**m) < .001), (cur_prob_Ax_zero, .5**m)
+                permute_pr_Ax_zero.append(cur_prob_Ax_zero)
+                if (np.abs(total_vec_count*(.5**m - cur_prob_Ax_zero))>10**150):
+                    print "w =", w, '!'*40
+                    print 'cur_prob_Ax_zero = ', cur_prob_Ax_zero     
+    elif NUMERICAL_METHOD == 'Logs':
+        ln = math.log
+        exp = math.exp
+        for w in range(1, max_w+1):
+            total_vec_count = nCr(n, w)
+            permute_vector_count.append(total_vec_count)
             calc_one = 0.0
             cur_prob_Ax_zero = 0
             for collision_count in range(max(0, m-(n-w)), min(w, m)+1):
-                collision_prob = permutation_collision_prob(n=n, m=m, w_in=w, w_out=collision_count, debug=True)
-                calc_one += collision_prob
-                cur_prob_Ax_zero += collision_prob * ((.5 + .5*(1-2*f_k1)**w)**(m-collision_count)) * ((.5 - .5*(1-2*f_k1)**(w-1))**collision_count)
-            assert(np.abs(calc_one -  1.0) < .0001), calc_one
+                ln_collision_prob = permutation_collision_prob(n=n, m=m, w_in=w, w_out=collision_count, return_ln=True, debug=True)
+                assert(ln_collision_prob <= 0), ln_collision_prob
+                calc_one += exp(ln_collision_prob)
+                cur_prob_Ax_zero += ln_collision_prob * ((.5 + .5*(1-2*f_k1)**w)**(m-collision_count)) * ((.5 - .5*(1-2*f_k1)**(w-1))**collision_count)
             permute_pr_Ax_zero.append(cur_prob_Ax_zero)
-        else: #incorrect, was previously using
-            double_check_vec_count = 0
-            prob = 0
-            for i in range(min(w, m) + 1): # the number of elements in the vector (x1-x2) that hit a deterministic 1 in the matrix A
-                print "m=", m
-                print "i=", i
-                print "w=", w
-                print 'n=', n
-                print min(w, m, n-m) 
-                if w-i > n-m:
-                    continue
-                cur_vec_count = nCr(m, i)*nCr(n-m, w-i)
-                double_check_vec_count += cur_vec_count
-                cur_prob = cur_vec_count/total_vec_count
-                prob += cur_prob * ((.5 + .5*(1-2*f_k1)**w)**(m-i)) * ((.5 - .5*(1-2*f_k1)**(w-1))**i)
-            assert(total_vec_count == double_check_vec_count)
-            permute_pr_Ax_zero.append(prob)
-        permute_vector_count.append(total_vec_count)
+            assert(np.abs(calc_one - 1.0) < .0001)
+    else:
+        assert(NUMERICAL_METHOD == 'Original')
+        for w in range(1, max_w+1):
+            total_vec_count = nCr(n, w)
+            permute_vector_count.append(total_vec_count)
+            USE_CORRECTED = False
+            if USE_CORRECTED:
+                calc_one = 0.0
+                cur_prob_Ax_zero = 0
+                for collision_count in range(max(0, m-(n-w)), min(w, m)+1):
+                    collision_prob = permutation_collision_prob(n=n, m=m, w_in=w, w_out=collision_count, debug=True)
+                    assert(collision_prob > 0), collision_prob
+                    calc_one += collision_prob
+                    cur_prob_Ax_zero += collision_prob * ((.5 + .5*(1-2*f_k1)**w)**(m-collision_count)) * ((.5 - .5*(1-2*f_k1)**(w-1))**collision_count)
+#                assert(np.abs(cur_prob_Ax_zero - .5**m) < .001), (cur_prob_Ax_zero, .5**m)
+                assert(np.abs(calc_one - 1.0) < .0001)
+                permute_pr_Ax_zero.append(cur_prob_Ax_zero)
+                if (np.abs(total_vec_count*(.5**m - cur_prob_Ax_zero))>10**150):
+                    print "w =", w, '!'*40
+                    print 'cur_prob_Ax_zero = ', cur_prob_Ax_zero
+            else: #incorrect, was previously using, ACTUALLY equivalent
+                double_check_vec_count = 0
+                prob = 0
+#                for i in range(min(w, m) + 1): # the number of elements in the vector (x1-x2) that hit a deterministic 1 in the matrix A
+                for i in range(max(0, w-(n-m)), min(w, m) + 1):
+                    #print "m=", m
+                    #print "i=", i
+                    #print "w=", w
+                    #print 'n=', n
+                    #print min(w, m, n-m) 
+                    #if w-i > n-m:
+                    #    continue
+                    cur_vec_count = nCr(m, i)*nCr(n-m, w-i)
+                    double_check_vec_count += cur_vec_count
+                    cur_prob = cur_vec_count/total_vec_count
+                    prob += cur_prob * ((.5 + .5*(1-2*f_k1)**w)**(m-i)) * ((.5 - .5*(1-2*f_k1)**(w-1))**i)
+                assert(total_vec_count == double_check_vec_count)
+                permute_pr_Ax_zero.append(prob)
 
     #calculate cumulative number of vectors with probability A(x1-x2)=0 greater than or equal to current value
     #note baseline is already monotonically decreasing with w, no need to sort
@@ -420,7 +522,10 @@ def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, RUN_BASELINE=False):
     permute_probability_sums = []
     permute_probability_averages = []
     for idx, vc in enumerate(permute_vector_count):
-        probability_sum += vc*permute_pr_Ax_zero[idx]
+        if MULT_VECTOR_COUNT_IMPLICT:
+            probability_sum += permute_pr_Ax_zero[idx]
+        else:
+            probability_sum += vc*permute_pr_Ax_zero[idx]
         permute_probability_sums.append(probability_sum)
         permute_probability_averages.append(probability_sum/permute_cumulative_vector_counts[idx])
 
@@ -488,7 +593,7 @@ def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, RUN_BASELINE=False):
         print len(baseline_cumulative_vector_counts)
 
     for idx, permute_sum in enumerate(permute_probability_sums):
-        print permute_sum - best_probability_sums[idx]
+        print 'idx:', idx, 'permute_sum - best_probability_sums[idx]=', permute_sum - best_probability_sums[idx]
 #        assert(permute_sum >= best_probability_sums[idx]), (idx, permute_sum, best_probability_sums[idx], (permute_sum - best_probability_sums[idx]))
 
 
@@ -531,12 +636,23 @@ def quick_check_counts(n, m, w):
 
 #plot_pr_Ax_zero(n=2, m=2, k=1, f=.0, max_w=2)
 if __name__=="__main__":
+    #check whether behavior with respect to n, m, f makes sense
+    #n and max_w should be set equal
+    plot_pr_Ax_zero(n=100, m=20, k=1, f_baseline=.01, f_k1=.01, max_w=100, RUN_BASELINE=True)
+    plot_pr_Ax_zero(n=400, m=80, k=1, f_baseline=.01, f_k1=.01, max_w=400, RUN_BASELINE=True)
+    plot_pr_Ax_zero(n=200, m=40, k=1, f_baseline=.01, f_k1=.01, max_w=200, RUN_BASELINE=True)
 
-    #plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.2, f_k1=.2, max_w=576, RUN_BASELINE=True)
-    plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.05, f_k1=.05, max_w=576, RUN_BASELINE=True)
+    plot_pr_Ax_zero(n=100, m=50, k=1, f_baseline=.02, f_k1=.02, max_w=100, RUN_BASELINE=True)        
+    plot_pr_Ax_zero(n=576, m=5, k=1, f_baseline=.01, f_k1=.01, max_w=576, RUN_BASELINE=True)
 
-    #why does this look messed up, can we do better than f=.5??
-    plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.1, f_k1=.1, max_w=576, RUN_BASELINE=True)
+###############    #plot_pr_Ax_zero(n=50, m=20, k=1, f_baseline=.1, f_k1=.5, max_w=50, RUN_BASELINE=False)
+###############    plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.4, f_k1=.4, max_w=576, RUN_BASELINE=True)
+###############
+###############    #plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.2, f_k1=.2, max_w=576, RUN_BASELINE=True)
+###############    plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.1, f_k1=.05, max_w=576, RUN_BASELINE=True)
+###############
+###############    #why does this look messed up, can we do better than f=.5??
+###############    plot_pr_Ax_zero(n=576, m=20, k=1, f_baseline=.1, f_k1=.1, max_w=576, RUN_BASELINE=True)
     
     ##count_vectors(n=20, w=5, k=4, verbose=True)
     ##sleep(3)
