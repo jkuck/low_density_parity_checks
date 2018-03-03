@@ -243,6 +243,8 @@ Therefore
   \label{eq:k_1_with_replacement}
 \end{equation}
 This looks simpler already.
+\todo{Careful, make sure that the inner function is monotonic wrt $w$, otherwise
+the worst-case set isn't a Hamming ball.}
 However, because of AM-GM inequality, I suspect this is slightly worse than the
 bound with true permutation: we always multiply a bunch of random walk
 probabilities together, so if these probabilities are the same then the product
@@ -290,8 +292,17 @@ Since there are $\binom{n}{m}$ permutations in total, we obtain the bound
 What if in each row of $A''$ we have more than one 1 entries (i.e., block size
 larger than 1)?
 When will that improve the bound?
-It's not intuitively clear to me that there's a benefit to having larger block
-size.
+
+Analyzing this is difficult as we have to keep track of how many rows hit the
+set $I$ at how many places, since that determines whether the random walk starts
+with 0 or 1 and the length of the walk.
+I believe it's impossible to compute this in polynomial time, since we need to
+keep track of and exponential number of such probabilities corresponding to an
+exponential number of random walk length combinations.
+Instead, we will make a simplifying assumption that makes the analysis much
+easier: after sampling the skeleton matrix $A''$, we flip all entries each with
+probability $f$ (not just the zero entries) to get $A$.
+Then the random walk always has length $w$.
 
 \paragraph{Sampling with replacement.}
 Again, we first consider the simple case where each rows of $A''$ are sampled
@@ -306,7 +317,7 @@ starts with 0.
 Therefore
 \begin{equation*}
   \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \left(
-    p_\mathrm{odd}(n, w, k) r^{(w-1, f)}(1, 0) + p_\mathrm{even}(n, w, k)
+    p_\mathrm{odd}(n, w, k) r^{(w, f)}(1, 0) + p_\mathrm{even}(n, w, k)
     r^{(w, f)}(0, 0)\right)^m, 
   \label{eq:k_large_with_replacement}
 \end{equation*}
@@ -319,6 +330,11 @@ where
 \end{equation*}
 If $k = 1$ then $p_\mathrm{odd}(n, w, k) = \frac{w}{n}$ and
 $p_\mathrm{even}(n, w, k) = \frac{n - w}{n}$, so we recover the formula~\eqref{eq:k_1_with_replacement}.
+As $k$ increases, $p_\mathrm{odd}$ and $p_\mathrm{even}$ get closer to $0.5$, so
+this helps for small $w$ and hurts for large $w$.
+But the difference between $r^{(w, f)}(1, 0)$ and $r^{(w, f)}(0, 0)$ is big for
+small $w$ and small for big $w$.
+Thus increasing $k$ will decrease the variance.
 
 \paragraph{Sampling without replacement.}
 This case is a little annoying and I don't think we can get a closed form
@@ -344,36 +360,40 @@ of $\{ 1, \dots, n \}$ of size $mk$, then randomly order the indices in this
 subset, and finally put them in blocks where $C_1$ contains the first $k$
 indices, $C_2$ contains the next $k$ indices, and so on.
 There are $(mk)! 
-\binom{n}{mk}$ permutations, and if we know that $C$ hits $I$ at $w'$ places
-then there are $\binom{w}{w'} \binom{n - w}{mk - w'}$ ways to choose such
-subsets.
-The central question is, after permuting the $mk$ indices in $C$ and putting them
-into blocks $C_1, \dots, C_m$, how many of such $(mk)!$ permutations result
-in exactly $q$ blocks that hit $I$ an odd number of times, with $0 \leq q \leq \min(w', m)$.
+\binom{n}{mk} / (k!)^m$ permutations (we divide by $(k!)^m$ because we ignore
+the order within each row), and if we know that $C$ hits $I$ at $w'$ places then
+there are $\binom{w}{w'} \binom{n - w}{mk - w'}$ ways to choose such subsets.
+The central question is, after permuting the $mk$ indices in $C$ and putting
+them into blocks $C_1, \dots, C_m$, how many of such $(mk)!$ permutations result
+in exactly $q$ blocks that hit $I$ an odd number of times, with $0 \leq q \leq
+\min(w', m)$.
 
 Let $f(r, s, t)$ be the number of permutations of $rk$ indices, with $s$ in $I$
 and $rk - s$ in $I^C = \{ 1, \dots, n \} \setminus I$, such that after putting them into
 $r$ blocks, $t$ of them hit $I$ an odd number of times.
-The number of care about is $f(m, w', q)$.
+The number we care about is $f(m, w', q)$.
 We can compute $f(r, s, t)$ recursively.
 Let $0 \leq h \leq \min(s, k)$ be the number of times the first block will hit $I$.
 Now we choose $k$ indices out of $rk$ such that $h$ of them belong to the $s$
-slots in $I$, so there are $\binom{s}{h} \binom{rk - s}{k - h} k!$ choices (we
-multiply by $k!$ because we're considering order in permutations).
+slots in $I$, so there are $\binom{s}{h} \binom{rk - s}{k - h}$ choices (recall
+that we ignore the order within each row).
 The problem reduces, since we have $r - 1$ rows left, with $s - h$ slots.
 Thus
 \begin{equation*}
   f(r, s, t) = \sum_{0 \leq h \leq \min(s, k)} \binom{s}{h}
-  \binom{rk-s}{k - h} k! f(r-1, s-h,
+  \binom{rk-s}{k - h} f(r-1, s-h,
   t-\mathbb{I}(h \text{ odd})) 
 \end{equation*}
-For the base case, $f(0, s, 0) = 1$ and $f(0, s, t) = 0$ for $t > 1$.
+For the base case, $f(0, s, 0) = 1$ and $f(0, s, t) = 0$ for $t > 1$, $f(r, s,
+-1) = 0$, and $f(r, s, t) = 0$ if $rk < s$.
+Notice that we can compute $f(m, w', q)$ in polynomial time by dynamic
+programming.
 
 After computing $f(m, w', q)$, we obtain the bound
 \begin{equation*}
-  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \sum_{q=1}^{\min(w', m)}
-    \frac{\binom{w}{w'} \binom{n - w}{mk-w'} f(m, w', q)}{(mk)! \binom{n}{mk}}
-    [r^{(w-1, f)}(1, 0)]^q [r^{(w, f)}(0, 0)]^{m-q}.
+  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \sum_{w'=0}^{\min(w, mk)}
+  \sum_{q=0}^{\min(w', m)} \frac{\binom{w}{w'} \binom{n - w}{mk-w'} f(m, w',
+    q)}{(mk)! \binom{n}{mk} / (k!)^m} [r^{(w, f)}(1, 0)]^q [r^{(w, f)}(0, 0)]^{m-q}. 
   \label{eq:k_large_with_replacement}
 \end{equation*}
 
