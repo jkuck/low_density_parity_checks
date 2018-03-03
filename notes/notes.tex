@@ -237,10 +237,11 @@ Then the random walk starts with 1 with probability $w/n$, and starts with 0
 with probability $1-w/n$.
 This is the same for all rows.
 Therefore
-\begin{equation*}
+\begin{equation}
   \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \left(
     \frac{w}{n} r^{(w-1, f)}(1, 0) + \frac{n-w}{n} r^{(w, f)}(0, 0)\right)^m. 
-\end{equation*}
+  \label{eq:k_1_with_replacement}
+\end{equation}
 This looks simpler already.
 However, because of AM-GM inequality, I suspect this is slightly worse than the
 bound with true permutation: we always multiply a bunch of random walk
@@ -276,11 +277,12 @@ Then we need to place the remaining $m - w'$ rows into $n - w$ indices (that are
 not in $I$), so there are $\binom{n - w}{m - w'}$ choices.
 Thus then number of choices is $\binom{w}{w'} \binom{n - w}{m - w'}$.
 Since there are $\binom{n}{m}$ permutations in total, we obtain the bound
-\begin{equation*}
+\begin{equation}
   \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w}
   \sum_{w'=0}^{\min(m, w)}\frac{\binom{w}{w'} \binom{n - w}{m - w'}}{\binom{n}{m}}
   [r^{(w-1, f)}(1, 0)]^{w'} [r^{(w, f)}(0, 0)]^{m-w'}.  
-\end{equation*}
+  \label{eq:k_1_without_replacment}
+\end{equation}
 
 \subsection{The case of larger block size}
 \label{subsec:block_size_larger}
@@ -291,13 +293,89 @@ When will that improve the bound?
 It's not intuitively clear to me that there's a benefit to having larger block
 size.
 
-Nevertheless, it's not that bad to write down the bound.
+\paragraph{Sampling with replacement.}
 Again, we first consider the simple case where each rows of $A''$ are sampled
-independently: $k$ indices are picked at random (with replacement) to be set to
-1.
-Since $x - x'$ has weight $w$, there's a $\frac{(n - w)^k}{n^k}$ chance that all
-$k$ indices picked will miss $x - x'$.
-What's the chance that all $k$ indices 
+independently: $k$ indices are picked at random (without replacement) to be set
+to 1.
+The probability that theses $k$ indices hit the set $I = \{ i \colon (x - x')_i
+= 1 \}$ at $t$ places (for $0 \leq t \leq \min(k, w)$) is $\frac{\binom{w}{t} \binom{n
+    - w}{k - t}}{\binom{n}{k}}$, by exactly the same reasoning as in the
+previous section (sampling without replacement). 
+If $t$ is odd, the random walk starts with 1, and if $t$ is even the random walk
+starts with 0.
+Therefore
+\begin{equation*}
+  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \left(
+    p_\mathrm{odd}(n, w, k) r^{(w-1, f)}(1, 0) + p_\mathrm{even}(n, w, k)
+    r^{(w, f)}(0, 0)\right)^m, 
+  \label{eq:k_large_with_replacement}
+\end{equation*}
+where
+\begin{equation*}
+  p_\mathrm{odd}(n, w, k) = \sum_{\substack{0 \leq t \leq \min(k, w) \\ t \text{ odd}}} \frac{\binom{w}{t}
+        \binom{n-w}{k-t}}{\binom{n}{k}}, \qquad
+  p_\mathrm{even}(n, w, k) = \sum_{\substack{0 \leq t \leq \min(k, w) \\ t \text{ even}}} \frac{\binom{w}{t}
+        \binom{n-w}{k-t}}{\binom{n}{k}}.
+\end{equation*}
+If $k = 1$ then $p_\mathrm{odd}(n, w, k) = \frac{w}{n}$ and
+$p_\mathrm{even}(n, w, k) = \frac{n - w}{n}$, so we recover the formula~\eqref{eq:k_1_with_replacement}.
+
+\paragraph{Sampling without replacement.}
+This case is a little annoying and I don't think we can get a closed form
+expression.
+Nevertheless, we can give a recursive formula to compute the bound in polynomial
+time\footnote{Recall that we'll be calling SAT solvers so it's essentially
+  ``free'' to run some polynomial time procedure.}.
+The sampling procedure for $A''$ is as follows: for each row, pick $k$ indices
+(without replacement) at random among those that have not been selected by
+previous rows.
+We require that $k \leq n / m$.
+
+Let $C_1, \dots, C_m$ be the set of indices selected in each row, and let $C =
+\bigcup_{i=1}^m C_i$.
+If $\abs{C_i \cap I}$ is odd then the random walk in that row starts at 1, and if
+$\abs{C_i \cap I}$ is even that it starts at 0.
+We care about the number of rows that hit $I$ an odd number of times.
+
+Let $w' = \abs{C \cap I}$ be the number of slots in $I$ that are hit by any of the
+rows, then $0 \leq w' \leq \min(w, mk)$.
+We can rephrase the sampling procedure as follows: first choose a random subset
+of $\{ 1, \dots, n \}$ of size $mk$, then randomly order the indices in this
+subset, and finally put them in blocks where $C_1$ contains the first $k$
+indices, $C_2$ contains the next $k$ indices, and so on.
+There are $(mk)! 
+\binom{n}{mk}$ permutations, and if we know that $C$ hits $I$ at $w'$ places
+then there are $\binom{w}{w'} \binom{n - w}{mk - w'}$ ways to choose such
+subsets.
+The central question is, after permuting the $mk$ indices in $C$ and putting them
+into blocks $C_1, \dots, C_m$, how many of such $(mk)!$ permutations result
+in exactly $q$ blocks that hit $I$ an odd number of times, with $0 \leq q \leq \min(w', m)$.
+
+Let $f(r, s, t)$ be the number of permutations of $rk$ indices, with $s$ in $I$
+and $rk - s$ in $I^C = \{ 1, \dots, n \} \setminus I$, such that after putting them into
+$r$ blocks, $t$ of them hit $I$ an odd number of times.
+The number of care about is $f(m, w', q)$.
+We can compute $f(r, s, t)$ recursively.
+Let $0 \leq h \leq \min(s, k)$ be the number of times the first block will hit $I$.
+Now we choose $k$ indices out of $rk$ such that $h$ of them belong to the $s$
+slots in $I$, so there are $\binom{s}{h} \binom{rk - s}{k - h} k!$ choices (we
+multiply by $k!$ because we're considering order in permutations).
+The problem reduces, since we have $r - 1$ rows left, with $s - h$ slots.
+Thus
+\begin{equation*}
+  f(r, s, t) = \sum_{0 \leq h \leq \min(s, k)} \binom{s}{h}
+  \binom{rk-s}{k - h} k! f(r-1, s-h,
+  t-\mathbb{I}(h \text{ odd})) 
+\end{equation*}
+For the base case, $f(0, s, 0) = 1$ and $f(0, s, t) = 0$ for $t > 1$.
+
+After computing $f(m, w', q)$, we obtain the bound
+\begin{equation*}
+  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \sum_{q=1}^{\min(w', m)}
+    \frac{\binom{w}{w'} \binom{n - w}{mk-w'} f(m, w', q)}{(mk)! \binom{n}{mk}}
+    [r^{(w-1, f)}(1, 0)]^q [r^{(w, f)}(0, 0)]^{m-q}.
+  \label{eq:k_large_with_replacement}
+\end{equation*}
 
 \bibliography{notes}
 
