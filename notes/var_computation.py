@@ -52,24 +52,19 @@ for c in itertools.permutations(range(1, n+1), m * k):
     counts_num_odd_blocks_per_wprime[wprime, num_odd_blocks] += 1
 
 @lru_cache(maxsize=None)
-def f(r, s, t, k):
+def g(r, s, t, k):
     if r == 0:
         return int(t == 0)
-    elif r * k < s:
+    elif r * k < s or t < 0:
         return 0
     else:
-        total = 0
-        for h in range(min(s, k) + 1):
-            if t == 0 and (h % 2):
-                continue
-            coeff = binom(s, h) * binom(r * k - s, k - h)
-            func = f(r - 1, s - h, t - (h % 2), k)
-            total += coeff * func
-        return total
+        h = np.arange(min(s, k) + 1)
+        coeff = binom(s, h) * binom(r * k - s, k - h)
+        return coeff @ np.array([g(r - 1, s - h_, t - (h_ % 2), k) for h_ in h])
 
-counts_num_odd_blocks_per_wprime_analytic = np.zeros((w + 1, w + 1), dtype=int)
+counts_num_odd_blocks_per_wprime_analytic = np.zeros((w + 1, w + 1))
 for wprime in range(min(w, m*k) + 1):
     for q in range(min(wprime, m) + 1):
-        counts_num_odd_blocks_per_wprime_analytic[wprime, q] = binom(w, wprime) * binom(n - w, m*k - wprime) * f(m, wprime, q, k)
+        counts_num_odd_blocks_per_wprime_analytic[wprime, q] = binom(w, wprime) * binom(n - w, m*k - wprime) * g(m, wprime, q, k)
 print(counts_num_odd_blocks_per_wprime_analytic / math.factorial(m*k) * math.factorial(k)**m / binom(n, m*k) -
       counts_num_odd_blocks_per_wprime / counts_num_odd_blocks_per_wprime.sum())
