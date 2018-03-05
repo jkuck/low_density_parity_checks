@@ -368,11 +368,11 @@ them into blocks $C_1, \dots, C_m$, how many of such $(mk)!$ permutations result
 in exactly $q$ blocks that hit $I$ an odd number of times, with $0 \leq q \leq
 \min(w', m)$.
 
-Let $f(r, s, t)$ be the number of permutations of $rk$ indices, with $s$ in $I$
+Let $g(r, s, t)$ be the number of permutations of $rk$ indices, with $s$ in $I$
 and $rk - s$ in $I^C = \{ 1, \dots, n \} \setminus I$, such that after putting them into
 $r$ blocks, $t$ of them hit $I$ an odd number of times.
-The number we care about is $f(m, w', q)$.
-We can compute $f(r, s, t)$ recursively.
+The number we care about is $g(m, w', q)$.
+We can compute $g(r, s, t)$ recursively.
 Let $0 \leq h \leq \min(s, k)$ be the number of times the first block will hit $I$.
 Now we choose $k$ indices out of $rk$ such that $h$ of them belong to the $s$
 slots in $I$, so there are $\binom{s}{h} \binom{rk - s}{k - h}$ choices (recall
@@ -380,20 +380,20 @@ that we ignore the order within each row).
 The problem reduces, since we have $r - 1$ rows left, with $s - h$ slots.
 Thus
 \begin{equation*}
-  f(r, s, t) = \sum_{0 \leq h \leq \min(s, k)} \binom{s}{h}
-  \binom{rk-s}{k - h} f(r-1, s-h,
+  g(r, s, t) = \sum_{0 \leq h \leq \min(s, k)} \binom{s}{h}
+  \binom{rk-s}{k - h} g(r-1, s-h,
   t-\mathbb{I}(h \text{ odd})) 
 \end{equation*}
-For the base case, $f(0, s, 0) = 1$ and $f(0, s, t) = 0$ for $t > 1$, $f(r, s,
--1) = 0$, and $f(r, s, t) = 0$ if $rk < s$.
-Notice that we can compute $f(m, w', q)$ in polynomial time by dynamic
+For the base case, $g(0, s, 0) = 1$ and $g(0, s, t) = 0$ for $t > 1$, $g(r, s,
+-1) = 0$, and $g(r, s, t) = 0$ if $rk < s$.
+Notice that we can compute $g(m, w', q)$ in polynomial time by dynamic
 programming.
 
-After computing $f(m, w', q)$, we obtain the bound
+After computing $g(m, w', q)$, we obtain the bound
 \begin{equation*}
   \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \sum_{w'=0}^{\min(w, mk)}
-  \sum_{q=0}^{\min(w', m)} \frac{\binom{w}{w'} \binom{n - w}{mk-w'} f(m, w',
-    q)}{(mk)! \binom{n}{mk} / (k!)^m} [r^{(w, f)}(1, 0)]^q [r^{(w, f)}(0, 0)]^{m-q}. 
+  \frac{\binom{w}{w'} \binom{n - w}{mk-w'}}{(mk)! \binom{n}{mk} / (k!)^m}
+  \sum_{q=0}^{\min(w', m)} g(m, w', q) [r^{(w, f)}(1, 0)]^q [r^{(w, f)}(0, 0)]^{m-q}. 
   \label{eq:k_large_with_replacement}
 \end{equation*}
 

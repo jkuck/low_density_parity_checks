@@ -1,6 +1,10 @@
 # Validate the analytic formula for the case of block size = 1 and permutation
+from __future__ import division
 import math
-from functools import lru_cache
+try:
+    from functools import lru_cache
+except ImportError:
+    from lru_cache import lru_cache
 import itertools
 import numpy as np
 from scipy.special import binom
@@ -35,8 +39,10 @@ def p_odd(n, w, k):
     counts_odd = binom(w, t) * binom(n - w, k - t)
     return counts_odd.sum() / binom(n, k)
 
-for k in range(n + 1):
-    print(p_odd(n, w, k))
+# for w in range(n + 1):
+# for k in range(n + 1):
+    # k = 1
+    # print(p_odd(n, w, k) * (0.5 - 0.5 * (1 - 2 * f)**w) + (1 - p_odd(n, w, k)) * (0.5 + 0.5 * (1 - 2 * f)**w))
 
 
 # k > 1, sampling without replacement
@@ -52,24 +58,30 @@ for c in itertools.permutations(range(1, n+1), m * k):
     counts_num_odd_blocks_per_wprime[wprime, num_odd_blocks] += 1
 
 @lru_cache(maxsize=None)
-def f(r, s, t, k):
+def g(r, s, t, k):
     if r == 0:
         return int(t == 0)
-    elif r * k < s:
+    elif r * k < s or t < 0:
         return 0
     else:
-        total = 0
-        for h in range(min(s, k) + 1):
-            if t == 0 and (h % 2):
-                continue
-            coeff = binom(s, h) * binom(r * k - s, k - h)
-            func = f(r - 1, s - h, t - (h % 2), k)
-            total += coeff * func
-        return total
+        h = np.arange(min(s, k) + 1)
+        coeff = binom(s, h) * binom(r * k - s, k - h)
+        return coeff.dot(np.array([g(r - 1, s - h_, t - (h_ % 2), k) for h_ in h]))
 
-counts_num_odd_blocks_per_wprime_analytic = np.zeros((w + 1, w + 1), dtype=int)
+counts_num_odd_blocks_per_wprime_analytic = np.zeros((w + 1, w + 1))
 for wprime in range(min(w, m*k) + 1):
     for q in range(min(wprime, m) + 1):
-        counts_num_odd_blocks_per_wprime_analytic[wprime, q] = binom(w, wprime) * binom(n - w, m*k - wprime) * f(m, wprime, q, k)
+        counts_num_odd_blocks_per_wprime_analytic[wprime, q] = binom(w, wprime) * binom(n - w, m*k - wprime) * g(m, wprime, q, k)
 print(counts_num_odd_blocks_per_wprime_analytic / math.factorial(m*k) * math.factorial(k)**m / binom(n, m*k) -
       counts_num_odd_blocks_per_wprime / counts_num_odd_blocks_per_wprime.sum())
+
+# import sys
+# sys.path.append('/Users/tridao/Documents/Research/SAT_18/low_density_parity_checks')
+# import random_walk
+
+# vector_count, Ax_zero_probs = random_walk.get_Ax_zero_probs_incompleteCol(n, m, w, k, 0.1)
+
+# normalized_counts = counts_num_odd_blocks_per_wprime_analytic.sum(axis=0) / counts_num_odd_blocks_per_wprime_analytic.sum()
+# q = np.arange(min(w, m) + 1)
+# f = 0.1
+# probs = (0.5 - 0.5 * (1 - 2 * f)**w)**q * (0.5 + 0.5 * (1 - 2 * f)**w)**(m - q)
