@@ -7,7 +7,49 @@ except ImportError:
     from lru_cache import lru_cache
 import itertools
 import numpy as np
-from scipy.special import binom
+from scipy.special import binom, gammaln, logsumexp
+
+def log_factorial(n):
+    """Log of n!
+    """
+    return gammaln(n + 1)
+
+def log_binom(n, k):
+    """Log of n! / (k! * (n - k)!)
+    """
+    return gammaln(n + 1) - (gammaln(k + 1) + gammaln(n - k + 1))
+
+@lru_cache(maxsize=None)
+def log_g(r, s, t, k):
+    """Recursive function defined in the notes.
+    """
+    if r == 0:
+        return 0.0 if t == 0 else float('-inf')
+    elif r * k < s or t < 0:
+        return float('-inf')
+    else:
+        h = np.arange(min(s, k) + 1)
+        log_coeff = log_binom(s, h) + log_binom(r * k - s, k - h)
+        log_g_vals = np.array([log_g(r - 1, s - h_, t - (h_ % 2), k) for h_ in h])
+        return logsumexp(log_coeff + log_g_vals)
+
+
+def get_Ax_zero_log_probs(n, m, w, k, f):
+    """Log probability of A(x - x') = 0 if x - x' has Hamming weight @w, A of size @m x @n
+    is first chosen to have, on each row, @k entries that are one, then all entries are flipped
+    with probability @f (i.e. random walk has length w).
+    """
+    assert n >= m * k
+    log_counts = np.full((w + 1, w + 1), float('-inf'))
+    for wprime in range(min(w, m * k) + 1):
+        for q in range(min(wprime, m) + 1):
+            log_counts[wprime, q] = log_binom(w, wprime) + log_binom(n - w, m * k - wprime) + log_g(m, wprime, q, k)
+    log_counts = logsumexp(log_counts, axis=0)
+    normalized_log_counts = log_counts - (log_factorial(m * k) + log_binom(n, m * k) - log_factorial(k) * m)
+    assert np.allclose(logsumexp(normalized_log_counts), 0.0)
+    q = np.arange(w + 1)
+    random_walk_log_probs = q * math.log(0.5 - 0.5 * (1 - 2 * f)**w) + (m - q) * math.log(0.5 + 0.5 * (1 - 2 * f)**w)
+    return logsumexp(normalized_log_counts + random_walk_log_probs)
 
 @lru_cache(maxsize=None)
 def g(r, s, t, k):
