@@ -9,6 +9,36 @@ import itertools
 import numpy as np
 from scipy.special import binom
 
+@lru_cache(maxsize=None)
+def g(r, s, t, k):
+    """Recursive function defined in the notes.
+    """
+    if r == 0:
+        return int(t == 0)
+    elif r * k < s or t < 0:
+        return 0
+    else:
+        h = np.arange(min(s, k) + 1)
+        coeff = binom(s, h) * binom(r * k - s, k - h)
+        return coeff.dot(np.array([g(r - 1, s - h_, t - (h_ % 2), k) for h_ in h]))
+
+def get_Ax_zero_probs(n, m, w, k, f):
+    """Probability of A(x - x') = 0 if x - x' has Hamming weight @w, A of size @m x @n
+    is first chosen to have, on each row, @k entries that are one, then all entries are flipped
+    with probability @f (i.e. random walk has length w).
+    """
+    assert n >= m * k
+    counts = np.zeros((w + 1, w + 1))
+    for wprime in range(min(w, m * k) + 1):
+        for q in range(min(wprime, m) + 1):
+            counts[wprime, q] = binom(w, wprime) * binom(n - w, m * k - wprime) * g(m, wprime, q, k)
+    counts = counts.sum(axis=0)
+    normalized_counts = counts / (math.factorial(m * k) * binom(n, m * k) / math.factorial(k)**m)
+    assert np.allclose(normalized_counts.sum(), 1.0)
+    q = np.arange(w + 1)
+    random_walk_probs = (0.5 - 0.5 * (1 - 2 * f)**w)**q * (0.5 + 0.5 * (1 - 2 * f)**w)**(m - q)
+    return normalized_counts.dot(random_walk_probs)
+
 n = 9
 m = 3
 w = 6
@@ -57,16 +87,7 @@ for c in itertools.permutations(range(1, n+1), m * k):
     counts_num_odd_blocks[num_odd_blocks] += 1
     counts_num_odd_blocks_per_wprime[wprime, num_odd_blocks] += 1
 
-@lru_cache(maxsize=None)
-def g(r, s, t, k):
-    if r == 0:
-        return int(t == 0)
-    elif r * k < s or t < 0:
-        return 0
-    else:
-        h = np.arange(min(s, k) + 1)
-        coeff = binom(s, h) * binom(r * k - s, k - h)
-        return coeff.dot(np.array([g(r - 1, s - h_, t - (h_ % 2), k) for h_ in h]))
+
 
 counts_num_odd_blocks_per_wprime_analytic = np.zeros((w + 1, w + 1))
 for wprime in range(min(w, m*k) + 1):
@@ -75,13 +96,13 @@ for wprime in range(min(w, m*k) + 1):
 print(counts_num_odd_blocks_per_wprime_analytic / math.factorial(m*k) * math.factorial(k)**m / binom(n, m*k) -
       counts_num_odd_blocks_per_wprime / counts_num_odd_blocks_per_wprime.sum())
 
-# import sys
-# sys.path.append('/Users/tridao/Documents/Research/SAT_18/low_density_parity_checks')
-# import random_walk
+import sys
+sys.path.append('/Users/tridao/Documents/Research/SAT_18/low_density_parity_checks')
+import random_walk
 
-# vector_count, Ax_zero_probs = random_walk.get_Ax_zero_probs_incompleteCol(n, m, w, k, 0.1)
-
-# normalized_counts = counts_num_odd_blocks_per_wprime_analytic.sum(axis=0) / counts_num_odd_blocks_per_wprime_analytic.sum()
-# q = np.arange(min(w, m) + 1)
-# f = 0.1
-# probs = (0.5 - 0.5 * (1 - 2 * f)**w)**q * (0.5 + 0.5 * (1 - 2 * f)**w)**(m - q)
+f = 0.1
+vector_count, Ax_zero_probs = random_walk.get_Ax_zero_probs_incompleteCol(n, m, w, k, f)
+a = np.array([(count / vector_count, prob) for prob, count in Ax_zero_probs.items()])
+prob = a[:, 0].dot(a[:, 1])
+prob_analytic = get_Ax_zero_probs(n, m, w, k, f)
+print(prob_analytic - prob)
