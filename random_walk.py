@@ -350,7 +350,7 @@ def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, BF_PRECISION=400, RUN_BASE
     '''
 #    assert(n/k == m) #make more general later
     
-    RUN_K_BLOCK_DIAG = False
+    RUN_K_BLOCK_DIAG = True
     if RUN_K_BLOCK_DIAG:
         all_w = [1] #w for the current partitioning
         all_pr_Ax_zero = [1] #pr_Ax_zero for the current partitioning
@@ -580,13 +580,14 @@ def plot_pr_Ax_zero(n, m, k, f_baseline, f_k1, max_w, BF_PRECISION=400, RUN_BASE
         print "2^n =", 2**n
         print "difference =", cumulative_vector_counts[-1] - baseline_cumulative_vector_counts[-1]
         print "2^n - (new total vector count)=", 2**n - cumulative_vector_counts[-1]
-#    plt.scatter(all_w,all_pr_Ax_zero,c=cumulative_vector_counts)
-#    print len(all_w)
-#    print len(baseline_pr_Ax_zero)
-#    print len(baseline_vector_count)
-#    plt.scatter(baseline_w,baseline_pr_Ax_zero,c=baseline_cumulative_vector_counts,marker='x')
-#    plt.colorbar()
-#    plt.show()
+        plt.scatter(all_w,all_pr_Ax_zero,c=cumulative_vector_counts)
+        print len(all_w)
+        print len(baseline_pr_Ax_zero)
+        print len(baseline_vector_count)
+        plt.scatter(baseline_w,baseline_pr_Ax_zero,c=baseline_cumulative_vector_counts,marker='x')
+        plt.colorbar()
+        plt.show()
+        exit(0)
 
         print 'debugging'
         print len(permute_cumulative_vector_counts)
@@ -640,6 +641,10 @@ def quick_check_counts(n, m, w):
 
 #plot_pr_Ax_zero(n=2, m=2, k=1, f=.0, max_w=2)
 if __name__=="__main__":
+    plot_pr_Ax_zero(n=50, m=10, k=3, f_baseline=.01, f_k1=-1, max_w=50, BF_PRECISION=400, RUN_BASELINE=True)
+
+    plot_pr_Ax_zero(n=300, m=80, k=1, f_baseline=.1, f_k1=.0966, max_w=300, RUN_BASELINE=True)
+    exit(0)
     #check whether behavior with respect to n, m, f makes sense
     #n and max_w should be set equal
     plot_pr_Ax_zero(n=100, m=20, k=1, f_baseline=.01, f_k1=.01, max_w=100, RUN_BASELINE=True)
