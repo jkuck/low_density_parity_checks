@@ -39,6 +39,7 @@ def get_Ax_zero_log_probs(n, m, w, k, f):
     is first chosen to have, on each row, @k entries that are one, then all entries are flipped
     with probability @f (i.e. random walk has length w).
     """
+    #print 'get_Ax_zero_log_probs called n=', n, 'm=', m, 'w=', w, 'k=', k, 'f=', f
     assert n >= m * k
     log_counts = np.full((w + 1, w + 1), float('-inf'))
     for wprime in range(min(w, m * k) + 1):
