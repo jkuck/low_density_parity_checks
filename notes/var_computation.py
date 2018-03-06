@@ -9,6 +9,19 @@ import itertools
 import numpy as np
 from scipy.special import binom, gammaln, logsumexp
 
+from functools import wraps
+
+def cached(func):
+    @wraps(func)
+    def wrapper(*args):
+        try:
+            return wrapper.cache[args]
+        except KeyError:
+            wrapper.cache[args] = result = func(*args)
+            return result
+    wrapper.cache = {}
+    return wrapper
+
 def log_factorial(n):
     """Log of n!
     """
@@ -19,7 +32,8 @@ def log_binom(n, k):
     """
     return gammaln(n + 1) - (gammaln(k + 1) + gammaln(n - k + 1))
 
-@lru_cache(maxsize=None)
+# @lru_cache(maxsize=None)
+@cached
 def log_g(r, s, t, k):
     """Recursive function defined in the notes.
     """
@@ -43,8 +57,9 @@ def get_Ax_zero_log_probs(n, m, w, k, f):
     assert n >= m * k
     log_counts = np.full((w + 1, w + 1), float('-inf'))
     for wprime in range(min(w, m * k) + 1):
+        log_coeff = log_binom(w, wprime) + log_binom(n - w, m * k - wprime)
         for q in range(min(wprime, m) + 1):
-            log_counts[wprime, q] = log_binom(w, wprime) + log_binom(n - w, m * k - wprime) + log_g(m, wprime, q, k)
+            log_counts[wprime, q] =  log_coeff + log_g(m, wprime, q, k)
     log_counts = logsumexp(log_counts, axis=0)
     normalized_log_counts = log_counts - (log_factorial(m * k) + log_binom(n, m * k) - log_factorial(k) * m)
     assert np.allclose(logsumexp(normalized_log_counts), 0.0)
@@ -83,12 +98,16 @@ def get_Ax_zero_probs(n, m, w, k, f):
     return normalized_counts.dot(random_walk_probs)
 
 
-if __name__=="__main__":
+def main():
+    n = 1500
+    m = 500
+    w = 130
+    k = 3
+    f = 0.1
+    # n = 9
+    # m = 3
+    # w = 6
 
-    n = 9
-    m = 3
-    w = 6
-    k = 1
     index_set = set(np.random.choice(range(1, n+1), size=w, replace=False))  # Arbitrary set of indices of x that are 1
 
     # k = 1, sampling without replacement
@@ -158,3 +177,7 @@ if __name__=="__main__":
     print a
     print prob
     print(prob_analytic - prob)
+
+
+if __name__ == '__main__':
+    main()
