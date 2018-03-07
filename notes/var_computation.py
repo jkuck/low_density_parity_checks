@@ -109,15 +109,16 @@ def log_g_new_table(n, m, k):
     #     log_binom_table[:, h] = log_binom(np.arange(n + 1), h)
     table = np.full((n + 1, m + 1), float('-inf'))
     table[:, 0] = 0.0
+    vals = np.empty((k + 1, n + 1, m + 1))
     for r in range(1, m + 1):
-        vals = np.full((k + 1, n - m * k + r * k + 1, m + 1), float('-inf'))
+        vals.fill(float('-inf'))
         for h in range(k + 1):
             s = np.arange(h, n - m * k + r * k + 1)
             # log_coeff = log_binom_table[s, h] + log_binom_table[n - (m - r) * k - s, k - h]
             log_coeff = log_binom(s, h) + log_binom(n - (m - r) * k - s, k - h)
             log_g_val = table[:n - m * k + r * k + 1 - h, :m + 1 - (h % 2)]
-            vals[h, h:n - m * k + r * k + 1, (h % 2):m + 1] = log_coeff[:, np.newaxis] + log_g_val
-        table[:n - m * k + r * k + 1] = logsumexp(vals, axis=0)
+            vals[h, h:n - m * k + r * k + 1, (h % 2):] = log_coeff[:, np.newaxis] + log_g_val
+        table[:n - m * k + r * k + 1] = logsumexp(vals[:, :n - m * k + r * k + 1], axis=0)
         # for s in range(n - m * k + r * k + 1):
         #     for t in range(min(m, s) + 1):
         #         vals = np.full(min(s, k) + 1, float('-inf'))
