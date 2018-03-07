@@ -67,6 +67,85 @@ def get_Ax_zero_log_probs(n, m, w, k, f):
     random_walk_log_probs = q * math.log(0.5 - 0.5 * (1 - 2 * f)**w) + (m - q) * math.log(0.5 + 0.5 * (1 - 2 * f)**w)
     return logsumexp(normalized_log_counts + random_walk_log_probs)
 
+@cached
+def log_g_new(r, s, t, k, n, m):
+    """Recursive function defined in the notes.
+    """
+    if r == 0:
+        return 0.0 if t == 0 else float('-inf')
+    elif t < 0:
+        return float('-inf')
+    elif n - m * k + r * k < s:
+        return float('-inf')
+    else:
+        h = np.arange(min(s, k) + 1)
+        log_coeff = log_binom(s, h) + log_binom(n - (m - r) * k - s, k - h)
+        log_g_vals = np.array([log_g_new(r - 1, s - h_, t - (h_ % 2), k, n, m) for h_ in h])
+        return logsumexp(log_coeff + log_g_vals)
+
+
+def get_Ax_zero_log_probs_new(n, m, w, k, f):
+    """Log probability of A(x - x') = 0 if x - x' has Hamming weight @w, A of size @m x @n
+    is first chosen to have, on each row, @k entries that are one, then all entries are flipped
+    with probability @f (i.e. random walk has length w).
+    """
+    assert n >= m * k
+    log_counts = np.full(w + 1, float('-inf'))
+    for q in range(min(w, m) + 1):
+        log_counts[q] = log_g_new(m, w, q, k, n, m)
+    normalized_log_counts = log_counts - (log_factorial(m * k) + log_binom(n, m * k) - log_factorial(k) * m)
+    # normalized_log_counts = log_counts - logsumexp(log_counts)
+    assert np.allclose(logsumexp(normalized_log_counts), 0.0)
+    q = np.arange(w + 1)
+    random_walk_log_probs = q * math.log(0.5 - 0.5 * (1 - 2 * f)**w) + (m - q) * math.log(0.5 + 0.5 * (1 - 2 * f)**w)
+    return logsumexp(normalized_log_counts + random_walk_log_probs)
+
+@cached
+def log_g_new_table(n, m, k):
+    """Recursive function defined in the notes.
+    """
+    # log_binom_table = np.empty((n + 1, k + 1))
+    # for h in range(k + 1):
+    #     log_binom_table[:, h] = log_binom(np.arange(n + 1), h)
+    table = np.full((m + 1, n + 1, m + 1), float('-inf'))
+    table[0, :, 0] = 0.0
+    for r in range(1, m + 1):
+        vals = np.full((k + 1, n - m * k + r * k + 1, m + 1), float('-inf'))
+        for h in range(k + 1):
+            s = np.arange(h, n - m * k + r * k + 1)
+            # log_coeff = log_binom_table[s, h] + log_binom_table[n - (m - r) * k - s, k - h]
+            log_coeff = log_binom(s, h) + log_binom(n - (m - r) * k - s, k - h)
+            log_g_val = table[r - 1, :n - m * k + r * k + 1 - h, :m + 1 - (h % 2)]
+            vals[h, h:n - m * k + r * k + 1, (h % 2):m + 1] = log_coeff[:, np.newaxis] + log_g_val
+        table[r, :n - m * k + r * k + 1] = logsumexp(vals, axis=0)
+        # for s in range(n - m * k + r * k + 1):
+        #     for t in range(min(m, s) + 1):
+        #         vals = np.full(min(s, k) + 1, float('-inf'))
+        #         for h in range(min(s, k) + 1):
+        #             if t - (h % 2) >= 0:
+        #                 log_coeff = log_binom_table[s, h] + log_binom_table[n - (m - r) * k - s, k - h]
+        #                 log_g_val = table[r - 1, s - h, t - (h % 2)]
+        #                 vals[h] = log_coeff + log_g_val
+        #         table[r, s, t] = logsumexp(vals)
+    return table
+
+def get_Ax_zero_log_probs_all(n, m, k, f):
+    """Log probability of A(x - x') = 0 if x - x' has Hamming weight @w, A of size @m x @n
+    is first chosen to have, on each row, @k entries that are one, then all entries are flipped
+    with probability @f (i.e. random walk has length w).
+    """
+    assert n >= m * k
+    table = log_g_new_table(n, m, k)
+    log_probs = np.empty(n)
+    for w in range(1, n + 1):
+        log_counts = table[m, w, :min(w, m) + 1]
+        normalized_log_counts = log_counts - (log_factorial(m * k) + log_binom(n, m * k) - log_factorial(k) * m)
+        assert np.allclose(logsumexp(normalized_log_counts), 0.0)
+        q = np.arange(min(w, m) + 1)
+        random_walk_log_probs = q * math.log(0.5 - 0.5 * (1 - 2 * f)**w) + (m - q) * math.log(0.5 + 0.5 * (1 - 2 * f)**w)
+        log_probs[w - 1] = logsumexp(normalized_log_counts + random_walk_log_probs)
+    return log_probs
+
 @lru_cache(maxsize=None)
 def g(r, s, t, k):
     """Recursive function defined in the notes.
