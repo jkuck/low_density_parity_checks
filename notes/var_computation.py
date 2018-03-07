@@ -130,9 +130,10 @@ def log_g_new_table(n, m, k):
     return table
 
 def get_Ax_zero_log_probs_all(n, m, k, f):
-    """Log probability of A(x - x') = 0 if x - x' has Hamming weight @w, A of size @m x @n
-    is first chosen to have, on each row, @k entries that are one, then all entries are flipped
-    with probability @f (i.e. random walk has length w).
+    """Log probability of A(x - x') = 0 if x - x' has Hamming weight @w, for @w
+    from 1 to @n. A of size @m x @n is first chosen to have, on each row, @k
+    entries that are one, then all entries are flipped with probability @f
+    (i.e. random walk has length w).
     """
     assert n >= m * k
     table = log_g_new_table(n, m, k)
