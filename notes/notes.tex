@@ -216,6 +216,16 @@ Thus we can bound
   \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{n - m} \binom{n}{w} [r^{(w,
     f)}(0, 0)]^m + \sum_{w=n-m+1}^{w^*} \binom{n}{w} [r^{(w-1, f)}(1, 0)]^{w-(n-m)} [r^{(w, f)}(0, 0)]^{n-m}.
 \end{equation*}
+Actually this isn't quite right. This assumes that the worst-case set is a
+Hamming ball around $x$.
+But the probability $\Pr[A(x - x') = 0]$ where $H(x, x') = w$ isn't monotonic in
+$w$.
+To get the bound, we have to construct a worst-case set around $x$.
+This is easy to do: compute the collision probability for each $w$, sort them,
+then with a bound on set size (e.g., $2^n$), put as many elements at distance
+$w$ with highest collision probability as possible (there are $\binom{n}{w}$
+such slots), and keep going until you exhaust the set size bound.
+This gives a bound on $\sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0]$.
 
 \subsection{Tighter bound for block size 1 with permutation}
 \label{subsec:block_size_1_perm}
@@ -236,15 +246,13 @@ $A''$ will hit $x - x'$, and there's a $1 - w/n$ chance that it will not.
 Then the random walk starts with 1 with probability $w/n$, and starts with 0
 with probability $1-w/n$.
 This is the same for all rows.
-Therefore
+Therefore for $x'$ such that $H(x, x') = w$,
 \begin{equation}
-  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \left(
-    \frac{w}{n} r^{(w-1, f)}(1, 0) + \frac{n-w}{n} r^{(w, f)}(0, 0)\right)^m. 
+  \Pr[A(x - x') = 0] = \left(\frac{w}{n} r^{(w-1, f)}(1, 0) + \frac{n-w}{n}
+    r^{(w, f)}(0, 0)\right)^m.
   \label{eq:k_1_with_replacement}
 \end{equation}
 This looks simpler already.
-\todo{Careful, make sure that the inner function is monotonic wrt $w$, otherwise
-the worst-case set isn't a Hamming ball.}
 However, because of AM-GM inequality, I suspect this is slightly worse than the
 bound with true permutation: we always multiply a bunch of random walk
 probabilities together, so if these probabilities are the same then the product
@@ -278,9 +286,10 @@ First choose $w'$ out of $w$ indices in $I$ to be hit ($\binom{w}{w'}$ choices).
 Then we need to place the remaining $m - w'$ rows into $n - w$ indices (that are
 not in $I$), so there are $\binom{n - w}{m - w'}$ choices.
 Thus then number of choices is $\binom{w}{w'} \binom{n - w}{m - w'}$.
-Since there are $\binom{n}{m}$ permutations in total, we obtain the bound
+Since there are $\binom{n}{m}$ permutations in total, for $x'$ such that $H(x,
+x') = w$,
 \begin{equation}
-  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w}
+  \Pr[A(x - x') = 0] =
   \sum_{w'=0}^{\min(m, w)}\frac{\binom{w}{w'} \binom{n - w}{m - w'}}{\binom{n}{m}}
   [r^{(w-1, f)}(1, 0)]^{w'} [r^{(w, f)}(0, 0)]^{m-w'}.  
   \label{eq:k_1_without_replacment}
@@ -314,9 +323,9 @@ The probability that theses $k$ indices hit the set $I = \{ i \colon (x - x')_i
 previous section (sampling without replacement). 
 If $t$ is odd, the random walk starts with 1, and if $t$ is even the random walk
 starts with 0.
-Therefore
+Therefore for $x'$ such that $H(x, x') = w$,
 \begin{equation*}
-  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \left(
+  \Pr[A(x - x') = 0] = \left(
     p_\mathrm{odd}(n, w, k) r^{(w, f)}(1, 0) + p_\mathrm{even}(n, w, k)
     r^{(w, f)}(0, 0)\right)^m, 
   \label{eq:k_large_with_replacement}
@@ -361,39 +370,39 @@ subset, and finally put them in blocks where $C_1$ contains the first $k$
 indices, $C_2$ contains the next $k$ indices, and so on.
 There are $(mk)! 
 \binom{n}{mk} / (k!)^m$ permutations (we divide by $(k!)^m$ because we ignore
-the order within each row), and if we know that $C$ hits $I$ at $w'$ places then
-there are $\binom{w}{w'} \binom{n - w}{mk - w'}$ ways to choose such subsets.
+the order within each row).
 The central question is, after permuting the $mk$ indices in $C$ and putting
 them into blocks $C_1, \dots, C_m$, how many of such $(mk)!$ permutations result
-in exactly $q$ blocks that hit $I$ an odd number of times, with $0 \leq q \leq
-\min(w', m)$.
+in at most $q$ blocks that hit $I$ an odd number of times, with $0 \leq q \leq
+\min(w, m)$.
 
-Let $g(r, s, t)$ be the number of permutations of $rk$ indices, with $s$ in $I$
-and $rk - s$ in $I^C = \{ 1, \dots, n \} \setminus I$, such that after putting them into
-$r$ blocks, $t$ of them hit $I$ an odd number of times.
-The number we care about is $g(m, w', q)$.
+Let $g(r, s, t)$ be the number of such permutations after $m - r$ rows are
+already chosen, such that after putting them into $r$ blocks, $t$ of them hit
+$I$ an odd number of times, where $\abs{I} = s$.
+The number we care about is $g(m, w, q)$.
 We can compute $g(r, s, t)$ recursively.
 Let $0 \leq h \leq \min(s, k)$ be the number of times the first block will hit $I$.
-Now we choose $k$ indices out of $rk$ such that $h$ of them belong to the $s$
-slots in $I$, so there are $\binom{s}{h} \binom{rk - s}{k - h}$ choices (recall
-that we ignore the order within each row).
+So we choose $h$ indices out of $s$ slots to be hit ($\binom{s}{h}$ choices),
+then we choose $k - h$ indices out of the remaining $n - (m - r)k - s$ slots
+(there are $n$ slots originally, $(m - r)k$ of those are already occupied by
+earlier rows, and $s$ of those we don't want to hit), so there are $\binom{n -
+  (m - r)k - s}{k - h}$ choices.
 The problem reduces, since we have $r - 1$ rows left, with $s - h$ slots.
 Thus
 \begin{equation*}
   g(r, s, t) = \sum_{0 \leq h \leq \min(s, k)} \binom{s}{h}
-  \binom{rk-s}{k - h} g(r-1, s-h,
+  \binom{n - (m - r)k - s}{k - h} g(r-1, s-h,
   t-\mathbb{I}(h \text{ odd})) 
 \end{equation*}
 For the base case, $g(0, s, 0) = 1$ and $g(0, s, t) = 0$ for $t > 1$, $g(r, s,
--1) = 0$, and $g(r, s, t) = 0$ if $rk < s$.
-Notice that we can compute $g(m, w', q)$ in polynomial time by dynamic
+-1) = 0$, and $g(r, s, t) = 0$ if $n - (m - r)k - s < 0$.
+Notice that we can compute $g(m, w, q)$ in polynomial time by dynamic
 programming.
 
-After computing $g(m, w', q)$, we obtain the bound
+After computing $g(m, w, q)$, we obtain
 \begin{equation*}
-  \sum_{x' \in S, x' \neq x} \Pr[A(x - x') = 0] \leq \sum_{w=1}^{w^*} \binom{n}{w} \sum_{w'=0}^{\min(w, mk)}
-  \frac{\binom{w}{w'} \binom{n - w}{mk-w'}}{(mk)! \binom{n}{mk} / (k!)^m}
-  \sum_{q=0}^{\min(w', m)} g(m, w', q) [r^{(w, f)}(1, 0)]^q [r^{(w, f)}(0, 0)]^{m-q}. 
+  \Pr[A(x - x') = 0] = \frac{1}{(mk)! \binom{n}{mk} / (k!)^m}
+  \sum_{q=0}^{\min(w, m)} g(m, w, q) [r^{(w, f)}(1, 0)]^q [r^{(w, f)}(0, 0)]^{m-q}.
   \label{eq:k_large_with_replacement}
 \end{equation*}
 
